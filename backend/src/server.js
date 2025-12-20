@@ -432,6 +432,44 @@ app.post('/api/admin/set-turn', (req, res) => {
   res.json(state);
 });
 
+app.post('/api/admin/players/:id/score', (req, res) => {
+  const { id } = req.params;
+  const { delta, score } = req.body || {};
+
+  const player = db
+    .prepare(
+      `SELECT id, name, slug, score, photo_url AS photoUrl, created_at AS createdAt
+       FROM players WHERE id = ?`
+    )
+    .get(id);
+  if (!player) return res.status(404).json({ error: 'Player not found' });
+
+  let newScore;
+  let appliedDelta = 0;
+
+  if (score !== undefined && score !== null) {
+    const s = Number(score);
+    if (!Number.isFinite(s)) return res.status(400).json({ error: 'score must be a number' });
+    newScore = Math.trunc(s);
+    db.prepare('UPDATE players SET score = ? WHERE id = ?').run(newScore, id);
+  } else {
+    const d = Number(delta);
+    if (!Number.isFinite(d)) return res.status(400).json({ error: 'delta must be a number' });
+    appliedDelta = Math.trunc(d);
+    db.prepare('UPDATE players SET score = score + ? WHERE id = ?').run(appliedDelta, id);
+    newScore = db.prepare('SELECT score FROM players WHERE id = ?').get(id).score;
+  }
+
+  emit(getIo(req), 'players:updated', listPlayers());
+  logEvent(
+    req,
+    'score_adjust',
+    `Admin adjusted ${player.name}: ${appliedDelta ? (appliedDelta > 0 ? '+' : '') + appliedDelta : 'set'} → ${newScore}`,
+    { playerId: id, playerName: player.name, delta: appliedDelta, score: newScore }
+  );
+  res.json({ playerId: id, score: newScore });
+});
+
 app.get('/api/admin/events', (req, res) => {
   const limit = req.query.limit;
   res.json(listEvents(limit));
@@ -604,6 +642,9 @@ app.post('/api/game/start', (req, res) => {
     seedDefaultQuestions({ selectForGame: true });
   }
 
+  // New game: reset board so no tiles start as "used".
+  db.prepare('UPDATE questions SET used_in_game = 0').run();
+
   const state = updateGameState({
     status: 'active',
     current_question_id: null,
@@ -623,6 +664,7 @@ app.post('/api/game/start', (req, res) => {
   emit(getIo(req), 'game:state', state);
   emitBuzzQueue(req);
   logEvent(req, 'game_started', 'Game started', {});
+  logEvent(req, 'board_reset', 'Board reset (all tiles unused)', {});
   res.json(state);
 });
 

@@ -113,13 +113,21 @@ function useGameData(showToast) {
     }
   }
 
-  async function selectCard({ questionId = null, category = null, points = null } = {}) {
+  async function selectCard({
+    questionId = null,
+    category = null,
+    points = null,
+    force = false,
+    pickerPlayerId = null,
+  } = {}) {
     setBusy(true);
     try {
       await axios.post(`${API_BASE}/game/select-card`, {
         questionId,
         category,
         points,
+        force: !!force,
+        pickerPlayerId: pickerPlayerId || null,
       });
     } catch (err) {
       console.error(err);
@@ -242,8 +250,9 @@ function TvView({ players, questions, gameState }) {
         players={players}
         questions={questions}
         gameState={gameState}
-        // TV is display-only; picking is done by the current player's phone.
+        // TV is display-only; picking is done by the current player's phone (or /host).
         selectCard={async () => {}}
+        interactive={false}
       />
     );
   }
@@ -409,6 +418,9 @@ function AdminView({
   const [selectedPlayer, setSelectedPlayer] = useState('');
   const [draft, setDraft] = useState({});
   const [turnPlayerId, setTurnPlayerId] = useState('');
+  const [scorePlayerId, setScorePlayerId] = useState('');
+  const [scoreDelta, setScoreDelta] = useState('');
+  const [scoreSet, setScoreSet] = useState('');
   const buzzedPlayer = useMemo(() => {
     if (!gameState?.last_buzz_player_id) return null;
     return players.find((p) => p.id === gameState.last_buzz_player_id) || null;
@@ -514,6 +526,42 @@ function AdminView({
     }
   }
 
+  const gameStatus = gameState?.status || 'unknown';
+  const gameRunning = gameStatus === 'active';
+
+  async function applyScoreDelta() {
+    if (!scorePlayerId) return;
+    const d = Number(scoreDelta);
+    if (!Number.isFinite(d) || d === 0) return;
+    setBusy(true);
+    try {
+      await axios.post(`${API_BASE}/admin/players/${scorePlayerId}/score`, { delta: d });
+      showToast('Score updated');
+      setScoreDelta('');
+    } catch (err) {
+      console.error(err);
+      showToast(err.response?.data?.error || 'Could not update score', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function applyScoreSet() {
+    if (!scorePlayerId) return;
+    const s = Number(scoreSet);
+    if (!Number.isFinite(s)) return;
+    setBusy(true);
+    try {
+      await axios.post(`${API_BASE}/admin/players/${scorePlayerId}/score`, { score: s });
+      showToast('Score set');
+    } catch (err) {
+      console.error(err);
+      showToast(err.response?.data?.error || 'Could not set score', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const selectedQuestions = useMemo(
     () => questions.filter((q) => q.selectedForGame),
     [questions]
@@ -542,12 +590,16 @@ function AdminView({
           </div>
         </div>
         <div className="button-row">
-          <button onClick={startGame} disabled={busy}>
-            Start Game
-          </button>
-          <button onClick={endGame} disabled={busy}>
-            End Game
-          </button>
+          {!gameRunning && (
+            <button onClick={startGame} disabled={busy}>
+              Start Game
+            </button>
+          )}
+          {gameRunning && (
+            <button onClick={endGame} disabled={busy}>
+              End Game
+            </button>
+          )}
           <button onClick={resetGame} disabled={busy}>
             Reset
           </button>
@@ -556,7 +608,12 @@ function AdminView({
         </button>
         </div>
         <div className="state-block">
-          <p>Status: {gameState?.status || 'unknown'}</p>
+          <p>
+            Status:{' '}
+            <strong className={`pill pill-${gameStatus}`}>
+              {gameStatus}
+            </strong>
+          </p>
           <p>Buzzer locked: {gameState?.buzzer_locked ? 'Yes' : 'No'}</p>
           <p>Current question: {gameState?.current_question_id || 'Not selected'}</p>
           <p>
@@ -586,6 +643,54 @@ function AdminView({
               </button>
             </div>
           )}
+        </div>
+
+        <div className="panel-sub">
+          <h4>Manual Score Adjust</h4>
+          <div className="chip-row">
+            <select
+              value={scorePlayerId}
+              onChange={(e) => setScorePlayerId(e.target.value)}
+              disabled={busy}
+            >
+              <option value="">Choose player</option>
+              {players.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.score || 0})
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              placeholder="+/- points"
+              value={scoreDelta}
+              onChange={(e) => setScoreDelta(e.target.value)}
+              disabled={busy || !scorePlayerId}
+              style={{ width: 140 }}
+            />
+            <button
+              onClick={applyScoreDelta}
+              disabled={busy || !scorePlayerId || !scoreDelta}
+            >
+              Apply Δ
+            </button>
+          </div>
+          <div className="chip-row" style={{ marginTop: 8 }}>
+            <input
+              type="number"
+              placeholder="set exact score"
+              value={scoreSet}
+              onChange={(e) => setScoreSet(e.target.value)}
+              disabled={busy || !scorePlayerId}
+              style={{ width: 180 }}
+            />
+            <button
+              onClick={applyScoreSet}
+              disabled={busy || !scorePlayerId || scoreSet === ''}
+            >
+              Set Score
+            </button>
+          </div>
         </div>
 
         <div className="panel-sub">
@@ -1111,6 +1216,19 @@ function PlayerProfile({ buzz, showToast }) {
   );
 }
 
+function HostBoard({ players, questions, gameState, selectCard }) {
+  return (
+    <BoardView
+      players={players}
+      questions={questions}
+      gameState={gameState}
+      selectCard={selectCard}
+      forcePick={true}
+      interactive={true}
+    />
+  );
+}
+
 function BuzzerOnly({ buzz, showToast }) {
   const { slug } = useParams();
   const [player, setPlayer] = useState(null);
@@ -1196,6 +1314,7 @@ function BuzzerOnly({ buzz, showToast }) {
           players={[player]}
           questions={questions}
           gameState={gameState}
+          interactive={true}
           selectCard={async ({ questionId, category, points }) => {
             await axios.post(`${API_BASE}/game/select-card`, {
               questionId,
@@ -1204,6 +1323,7 @@ function BuzzerOnly({ buzz, showToast }) {
               pickerPlayerId: player.id,
             });
           }}
+          pickerPlayerId={player.id}
         />
       </div>
     );
@@ -1231,7 +1351,15 @@ function BuzzerOnly({ buzz, showToast }) {
   );
 }
 
-function BoardView({ players, questions, gameState, selectCard }) {
+function BoardView({
+  players,
+  questions,
+  gameState,
+  selectCard,
+  forcePick = false,
+  pickerPlayerId = null,
+  interactive = true,
+}) {
   const money = [200, 400, 600, 800, 1000];
   const [naOpen, setNaOpen] = useState(false);
   const [naInfo, setNaInfo] = useState({ category: '', points: 0 });
@@ -1267,7 +1395,16 @@ function BoardView({ players, questions, gameState, selectCard }) {
     const m = new Map(); // key: `${cat}|${points}` => question
     selected.forEach((q) => {
       const key = `${q.category.trim()}|${q.points}`;
-      if (!m.has(key)) m.set(key, q);
+      if (!m.has(key)) {
+        m.set(key, q);
+        return;
+      }
+      // If there are duplicates for the same tile, prefer an unused question so the
+      // tile doesn't appear "answered" due to a different duplicate being used.
+      const existing = m.get(key);
+      if (existing?.usedInGame && !q.usedInGame) {
+        m.set(key, q);
+      }
     });
     return m;
   }, [selected]);
@@ -1313,14 +1450,21 @@ function BoardView({ players, questions, gameState, selectCard }) {
   }, [clueKey]);
 
   async function handlePick(cat, pts) {
-    if (clueActive) {
+    if (!interactive) return;
+    if (clueActive && !forcePick) {
       setNotice('Resolve the current clue first (Admin → Mark Correct/Wrong).');
       return;
     }
     const q = lookup.get(`${cat}|${pts}`);
     if (!q) {
       // Empty tile: backend may fill with default question; show N/A only if not.
-      await selectCard({ questionId: null, category: cat, points: pts });
+      await selectCard({
+        questionId: null,
+        category: cat,
+        points: pts,
+        force: !!forcePick,
+        pickerPlayerId,
+      });
       if ((gameState?.current_clue_text || '').trim().toUpperCase() === 'N/A') {
         setNaInfo({ category: cat, points: pts });
         setNaOpen(true);
@@ -1328,7 +1472,13 @@ function BoardView({ players, questions, gameState, selectCard }) {
       return;
     }
     if (q.usedInGame) return;
-    await selectCard({ questionId: q.id, category: cat, points: pts });
+    await selectCard({
+      questionId: q.id,
+      category: cat,
+      points: pts,
+      force: !!forcePick,
+      pickerPlayerId,
+    });
   }
 
   return (
@@ -1353,18 +1503,18 @@ function BoardView({ players, questions, gameState, selectCard }) {
                   gameState?.current_category === cat &&
                   gameState?.current_points === pts);
               const isUsed = !!q?.usedInGame;
-              const disabled = isUsed;
+              const disabled = isUsed || (clueActive && !forcePick);
+              const CellTag = interactive ? 'button' : 'div';
               return (
-                <button
+                <CellTag
                   key={`${cat}|${pts}`}
                   className={`jeopardy-cell money ${
                     isUsed ? 'used' : ''
-                  } ${isActive ? 'active' : ''}`}
-                  onClick={() => handlePick(cat, pts)}
-                  disabled={disabled || clueActive}
+                  } ${isActive ? 'active' : ''} ${interactive ? '' : 'readonly'}`}
+                  {...(interactive ? { onClick: () => handlePick(cat, pts), disabled } : {})}
                 >
                   {!isUsed ? `$${pts}` : `$${pts}`}
-                </button>
+                </CellTag>
               );
             })}
           </div>
@@ -1424,13 +1574,14 @@ function BoardView({ players, questions, gameState, selectCard }) {
                   ))}
               </div>
             </div>
-
-            <div className="button-row" style={{ marginTop: 14, justifyContent: 'center' }}>
-              <button onClick={() => setShowClue(false)}>Hide Clue</button>
-              <Link className="pill-link" to="/admin">
-                Go to Admin
-              </Link>
-            </div>
+            {interactive && (
+              <div className="button-row" style={{ marginTop: 14, justifyContent: 'center' }}>
+                <button onClick={() => setShowClue(false)}>Hide Clue</button>
+                <Link className="pill-link" to="/admin">
+                  Go to Admin
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1451,9 +1602,49 @@ function BoardView({ players, questions, gameState, selectCard }) {
   );
 }
 
+function PlayersPage({ players }) {
+  const sorted = useMemo(() => {
+    return [...players].sort((a, b) =>
+      String(a.name || '').localeCompare(String(b.name || ''))
+    );
+  }, [players]);
+
+  return (
+    <section className="panel">
+      <div className="panel-header">
+        <div>
+          <h2>Players</h2>
+          <p>Select your profile to rejoin.</p>
+        </div>
+      </div>
+
+      <ul className="list">
+        {sorted.map((p) => (
+          <li key={p.id} className="player-row">
+            <Link className="person" to={`/${p.slug}`}>
+              {p.photoUrl ? (
+                <img className="avatar" src={p.photoUrl} alt={p.name} />
+              ) : (
+                <div className="avatar fallback">{p.name.slice(0, 2).toUpperCase()}</div>
+              )}
+              <span>{p.name}</span>
+            </Link>
+            <Link className="muted" to={`/${p.slug}/buzzer`}>
+              Buzzer
+            </Link>
+          </li>
+        ))}
+        {sorted.length === 0 && <li className="muted">No players yet. Go register.</li>}
+      </ul>
+    </section>
+  );
+}
+
 function App() {
   const { toast, showToast } = useToast();
   const game = useGameData(showToast);
+  const location = useLocation();
+  const tvMode = location.pathname === '/' || location.pathname === '/board';
 
   return (
     <div className="app">
@@ -1462,17 +1653,25 @@ function App() {
           <h1>Metro Christmas Jeopardy</h1>
           <p className="subtitle">TV display, player portal, and admin control</p>
         </div>
-        <nav className="tabs">
-          <Link className="tab-link" to="/">
-            TV
-          </Link>
-          <Link className="tab-link" to="/register">
-            Register
-          </Link>
-          <Link className="tab-link" to="/admin">
-            Admin
-          </Link>
-        </nav>
+        {!tvMode && (
+          <nav className="tabs">
+            <Link className="tab-link" to="/">
+              TV
+            </Link>
+            <Link className="tab-link" to="/players">
+              Players
+            </Link>
+            <Link className="tab-link" to="/register">
+              Register
+            </Link>
+            <Link className="tab-link" to="/admin">
+              Admin
+            </Link>
+            <Link className="tab-link" to="/host">
+              Host
+            </Link>
+          </nav>
+        )}
       </header>
 
       {toast && <div className={`toast ${toast.type}`}>{toast.message}</div>}
@@ -1488,6 +1687,31 @@ function App() {
                 gameState={game.gameState}
               />
             }
+          />
+          <Route
+            path="/board"
+            element={
+              <TvView
+                players={game.players}
+                questions={game.questions}
+                gameState={game.gameState}
+              />
+            }
+          />
+          <Route
+            path="/host"
+            element={
+              <HostBoard
+                players={game.players}
+                questions={game.questions}
+                gameState={game.gameState}
+                selectCard={game.selectCard}
+              />
+            }
+          />
+          <Route
+            path="/players"
+            element={<PlayersPage players={game.players} />}
           />
           <Route
             path="/register"
@@ -1527,17 +1751,6 @@ function App() {
           <Route
             path="/:slug/buzzer"
             element={<BuzzerOnly buzz={game.buzz} showToast={showToast} />}
-          />
-          <Route
-            path="/board"
-            element={
-              <BoardView
-                players={game.players}
-                questions={game.questions}
-                gameState={game.gameState}
-                selectCard={game.selectCard}
-              />
-            }
           />
         </Routes>
       </main>

@@ -227,6 +227,13 @@ button:disabled {
   gap: 12px;
 }
 
+.player-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .list li {
   padding: 12px;
   border-radius: 12px;
@@ -519,6 +526,10 @@ button:disabled {
 .jeopardy-cell.money.active {
   box-shadow: 0 10px 30px rgba(34, 211, 238, 0.35);
   border-color: #22d3ee;
+}
+
+.jeopardy-cell.readonly {
+  cursor: default;
 }
 
 @media (max-width: 900px) {
