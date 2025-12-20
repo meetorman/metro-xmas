@@ -16,6 +16,34 @@
   background: rgba(2, 6, 23, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.14);
   backdrop-filter: blur(10px);
+  position: relative;
+  overflow: hidden;
+}
+
+.topbar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(12px 12px at 8% 18%, rgba(244,63,94,0.9) 0 45%, transparent 52%),
+    radial-gradient(12px 12px at 18% 18%, rgba(34,211,238,0.9) 0 45%, transparent 52%),
+    radial-gradient(12px 12px at 28% 18%, rgba(253,216,53,0.95) 0 45%, transparent 52%),
+    radial-gradient(12px 12px at 38% 18%, rgba(16,185,129,0.9) 0 45%, transparent 52%),
+    radial-gradient(12px 12px at 48% 18%, rgba(244,63,94,0.9) 0 45%, transparent 52%),
+    radial-gradient(12px 12px at 58% 18%, rgba(34,211,238,0.9) 0 45%, transparent 52%),
+    radial-gradient(12px 12px at 68% 18%, rgba(253,216,53,0.95) 0 45%, transparent 52%),
+    radial-gradient(12px 12px at 78% 18%, rgba(16,185,129,0.9) 0 45%, transparent 52%),
+    radial-gradient(12px 12px at 88% 18%, rgba(244,63,94,0.9) 0 45%, transparent 52%),
+    linear-gradient(90deg, rgba(255,255,255,0.0), rgba(255,255,255,0.14), rgba(255,255,255,0.0));
+  opacity: 0.55;
+  filter: drop-shadow(0 0 8px rgba(253,216,53,0.25));
+  animation: twinkle 3.8s ease-in-out infinite;
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.40; }
+  50% { opacity: 0.70; }
 }
 
 .topbar h1 {
@@ -454,7 +482,12 @@ button:disabled {
 /* Classic Jeopardy-style board */
 .jeopardy-screen {
   min-height: 100vh;
-  background: #0a1766;
+  background:
+    radial-gradient(900px 600px at 50% 0%, rgba(253, 216, 53, 0.12), transparent 60%),
+    radial-gradient(900px 600px at 0% 60%, rgba(244, 63, 94, 0.10), transparent 60%),
+    radial-gradient(900px 600px at 100% 60%, rgba(34, 211, 238, 0.10), transparent 60%),
+    radial-gradient(1200px 900px at 50% 100%, rgba(16, 185, 129, 0.10), transparent 60%),
+    linear-gradient(180deg, #070a1f 0%, #081034 45%, #05070e 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -480,6 +513,30 @@ button:disabled {
   width: min(1200px, 100%);
   display: grid;
   gap: 8px;
+  position: relative;
+}
+
+.jeopardy-board::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: -18px;
+  height: 18px;
+  pointer-events: none;
+  background:
+    radial-gradient(10px 10px at 5% 50%, rgba(244,63,94,0.95) 0 45%, transparent 55%),
+    radial-gradient(10px 10px at 15% 50%, rgba(34,211,238,0.95) 0 45%, transparent 55%),
+    radial-gradient(10px 10px at 25% 50%, rgba(253,216,53,0.98) 0 45%, transparent 55%),
+    radial-gradient(10px 10px at 35% 50%, rgba(16,185,129,0.95) 0 45%, transparent 55%),
+    radial-gradient(10px 10px at 45% 50%, rgba(244,63,94,0.95) 0 45%, transparent 55%),
+    radial-gradient(10px 10px at 55% 50%, rgba(34,211,238,0.95) 0 45%, transparent 55%),
+    radial-gradient(10px 10px at 65% 50%, rgba(253,216,53,0.98) 0 45%, transparent 55%),
+    radial-gradient(10px 10px at 75% 50%, rgba(16,185,129,0.95) 0 45%, transparent 55%),
+    radial-gradient(10px 10px at 85% 50%, rgba(244,63,94,0.95) 0 45%, transparent 55%),
+    radial-gradient(10px 10px at 95% 50%, rgba(34,211,238,0.95) 0 45%, transparent 55%);
+  opacity: 0.65;
+  filter: drop-shadow(0 0 10px rgba(253,216,53,0.35));
 }
 
 .jeopardy-row {

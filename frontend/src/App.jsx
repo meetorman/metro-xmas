@@ -59,7 +59,11 @@ function useSfx() {
     setTimeout(() => tone({ freq: 164.81, type: 'square', durationMs: 220, gain: 0.05 }), 120);
   }
 
-  return { buzz, correct, wrong };
+  function tick() {
+    tone({ freq: 880, type: 'sine', durationMs: 35, gain: 0.02 });
+  }
+
+  return { buzz, correct, wrong, tick };
 }
 
 async function fileToDataUrl(file) {
@@ -80,7 +84,7 @@ function useToast() {
   return { toast, showToast };
 }
 
-function useGameData(showToast) {
+function useGameData(showToast, { enableSfx = false } = {}) {
   const [players, setPlayers] = useState([]);
   const [questions, setQuestions] = useState([]);
   const [gameState, setGameState] = useState(null);
@@ -127,6 +131,7 @@ function useGameData(showToast) {
     });
     socket.on('events:new', (evt) => {
       if (!evt?.type) return;
+      if (!enableSfx) return;
       if (evt.type === 'buzz' || evt.type === 'buzz_advance') sfx.buzz();
       if (evt.type === 'marked_correct') sfx.correct();
       if (evt.type === 'marked_wrong') sfx.wrong();
@@ -145,6 +150,7 @@ function useGameData(showToast) {
   // Catch buzzer events even if the activity feed isn't visible:
   useEffect(() => {
     if (!gameState) return;
+    if (!enableSfx) return;
     const locked = !!gameState.buzzer_locked;
     const pid = gameState.last_buzz_player_id;
     const t = gameState.last_buzz_time;
@@ -152,7 +158,7 @@ function useGameData(showToast) {
       lastBuzzRef.current = { playerId: pid, time: t };
       sfx.buzz();
     }
-  }, [gameState?.buzzer_locked, gameState?.last_buzz_player_id, gameState?.last_buzz_time]);
+  }, [enableSfx, gameState?.buzzer_locked, gameState?.last_buzz_player_id, gameState?.last_buzz_time]);
 
   async function refreshAll() {
     try {
@@ -316,6 +322,7 @@ function TvView({ players, questions, gameState }) {
         // TV is display-only; picking is done by the current player's phone (or /host).
         selectCard={async () => {}}
         interactive={false}
+        tvSound={true}
       />
     );
   }
@@ -1288,6 +1295,7 @@ function HostBoard({ players, questions, gameState, selectCard }) {
       selectCard={selectCard}
       forcePick={true}
       interactive={true}
+      tvSound={false}
     />
   );
 }
@@ -1387,6 +1395,7 @@ function BuzzerOnly({ buzz, showToast }) {
             });
           }}
           pickerPlayerId={player.id}
+          tvSound={false}
         />
       </div>
     );
@@ -1422,6 +1431,7 @@ function BoardView({
   forcePick = false,
   pickerPlayerId = null,
   interactive = true,
+  tvSound = false,
 }) {
   const money = [200, 400, 600, 800, 1000];
   const [naOpen, setNaOpen] = useState(false);
@@ -1501,6 +1511,19 @@ function BoardView({
     const remaining = Math.max(0, Math.ceil(30 - elapsed));
     return remaining;
   }, [gameState?.last_buzz_time, now]);
+
+  // TV-only ticking during countdown
+  const lastTickRef = useRef(null);
+  const sfx = useSfx();
+  useEffect(() => {
+    if (!tvSound) return;
+    if (!gameState?.last_buzz_time) return;
+    if (countdown <= 0) return;
+    // only tick once per second value
+    if (lastTickRef.current === countdown) return;
+    lastTickRef.current = countdown;
+    sfx.tick();
+  }, [tvSound, countdown, gameState?.last_buzz_time]);
 
   const clueActive = !!gameState?.current_question_id || !!gameState?.current_is_placeholder;
   const clueKey = `${gameState?.current_question_id || ''}|${gameState?.current_is_placeholder || 0}|${
@@ -1705,9 +1728,9 @@ function PlayersPage({ players }) {
 
 function App() {
   const { toast, showToast } = useToast();
-  const game = useGameData(showToast);
   const location = useLocation();
   const tvMode = location.pathname === '/' || location.pathname === '/board';
+  const game = useGameData(showToast, { enableSfx: tvMode });
 
   return (
     <div className="app">
