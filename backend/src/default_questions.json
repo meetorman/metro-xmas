@@ -1,0 +1,188 @@
+[
+  {
+    "category": "90s Movies",
+    "points": 200,
+    "questionText": "In \"Toy Story\" (1995), what is the name of Andy's favorite cowboy toy?",
+    "answer": "Woody"
+  },
+  {
+    "category": "90s Movies",
+    "points": 400,
+    "questionText": "This 1997 blockbuster had Leonardo DiCaprio and Kate Winslet aboard a doomed ship.",
+    "answer": "Titanic"
+  },
+  {
+    "category": "90s Movies",
+    "points": 600,
+    "questionText": "In \"Home Alone,\" what city does Kevin's family fly to when they accidentally leave him behind?",
+    "answer": "Paris"
+  },
+  {
+    "category": "90s Movies",
+    "points": 800,
+    "questionText": "This 1999 sci‑fi film features the choice between a red pill and a blue pill.",
+    "answer": "The Matrix"
+  },
+  {
+    "category": "90s Movies",
+    "points": 1000,
+    "questionText": "In \"Jurassic Park\" (1993), what kind of mathematician is Ian Malcolm?",
+    "answer": "A chaos theorist"
+  },
+
+  {
+    "category": "Disney & Pixar",
+    "points": 200,
+    "questionText": "In \"Frozen,\" what is the name of the snowman who loves warm hugs?",
+    "answer": "Olaf"
+  },
+  {
+    "category": "Disney & Pixar",
+    "points": 400,
+    "questionText": "In \"Finding Nemo,\" what kind of fish is Nemo?",
+    "answer": "A clownfish"
+  },
+  {
+    "category": "Disney & Pixar",
+    "points": 600,
+    "questionText": "In \"The Lion King,\" what is Simba's father's name?",
+    "answer": "Mufasa"
+  },
+  {
+    "category": "Disney & Pixar",
+    "points": 800,
+    "questionText": "In \"Moana,\" what is the name of the demigod who says, \"You're welcome\"?",
+    "answer": "Maui"
+  },
+  {
+    "category": "Disney & Pixar",
+    "points": 1000,
+    "questionText": "In \"Ratatouille,\" what is the rat chef's name?",
+    "answer": "Remy"
+  },
+
+  {
+    "category": "TV Catchphrases",
+    "points": 200,
+    "questionText": "In \"Friends,\" Joey's famous line when flirting is \"How you ____?\"",
+    "answer": "doin' (doing)"
+  },
+  {
+    "category": "TV Catchphrases",
+    "points": 400,
+    "questionText": "In \"The Simpsons,\" Homer often says this short exclamation when frustrated.",
+    "answer": "D'oh!"
+  },
+  {
+    "category": "TV Catchphrases",
+    "points": 600,
+    "questionText": "In \"SpongeBob SquarePants,\" who is the owner of the Krusty Krab?",
+    "answer": "Mr. Krabs"
+  },
+  {
+    "category": "TV Catchphrases",
+    "points": 800,
+    "questionText": "In \"The Office\" (US), what is the name of the paper company where everyone works?",
+    "answer": "Dunder Mifflin"
+  },
+  {
+    "category": "TV Catchphrases",
+    "points": 1000,
+    "questionText": "In \"Game of Thrones,\" which family is known for the words \"Winter is Coming\"?",
+    "answer": "House Stark"
+  },
+
+  {
+    "category": "Music & Pop Stars",
+    "points": 200,
+    "questionText": "This pop star sang \"Shake It Off.\"",
+    "answer": "Taylor Swift"
+  },
+  {
+    "category": "Music & Pop Stars",
+    "points": 400,
+    "questionText": "Which British band released the album \"Abbey Road\"?",
+    "answer": "The Beatles"
+  },
+  {
+    "category": "Music & Pop Stars",
+    "points": 600,
+    "questionText": "This artist is famous for the moonwalk and the album \"Thriller.\"",
+    "answer": "Michael Jackson"
+  },
+  {
+    "category": "Music & Pop Stars",
+    "points": 800,
+    "questionText": "Which singer is known as \"Queen Bey\"?",
+    "answer": "Beyoncé"
+  },
+  {
+    "category": "Music & Pop Stars",
+    "points": 1000,
+    "questionText": "This duo sang \"I Got You Babe.\"",
+    "answer": "Sonny & Cher"
+  },
+
+  {
+    "category": "Video Games",
+    "points": 200,
+    "questionText": "What color is Pac‑Man?",
+    "answer": "Yellow"
+  },
+  {
+    "category": "Video Games",
+    "points": 400,
+    "questionText": "In \"Mario\" games, what is Mario's brother's name?",
+    "answer": "Luigi"
+  },
+  {
+    "category": "Video Games",
+    "points": 600,
+    "questionText": "In \"Minecraft,\" what tool do you need to mine obsidian effectively?",
+    "answer": "A diamond pickaxe"
+  },
+  {
+    "category": "Video Games",
+    "points": 800,
+    "questionText": "In \"Pokémon,\" what is the name of the electric mouse Pokémon?",
+    "answer": "Pikachu"
+  },
+  {
+    "category": "Video Games",
+    "points": 1000,
+    "questionText": "In \"The Legend of Zelda,\" what is the name of the main hero?",
+    "answer": "Link"
+  },
+
+  {
+    "category": "Holiday Pop Culture",
+    "points": 200,
+    "questionText": "In \"Elf,\" Buddy travels to this city to find his father.",
+    "answer": "New York City"
+  },
+  {
+    "category": "Holiday Pop Culture",
+    "points": 400,
+    "questionText": "In \"Home Alone,\" Kevin defends his house on this holiday.",
+    "answer": "Christmas"
+  },
+  {
+    "category": "Holiday Pop Culture",
+    "points": 600,
+    "questionText": "In \"The Grinch,\" what does the Grinch steal from Whoville?",
+    "answer": "Christmas"
+  },
+  {
+    "category": "Holiday Pop Culture",
+    "points": 800,
+    "questionText": "In \"A Christmas Story,\" what gift does Ralphie want?",
+    "answer": "A Red Ryder BB gun"
+  },
+  {
+    "category": "Holiday Pop Culture",
+    "points": 1000,
+    "questionText": "In \"It's a Wonderful Life,\" what is the name of George Bailey's guardian angel?",
+    "answer": "Clarence"
+  }
+]
+
