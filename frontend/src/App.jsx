@@ -1820,7 +1820,7 @@ function App() {
   const game = useGameData(showToast, { enableSfx: tvMode });
 
   return (
-    <div className="app">
+    <div className={`app ${tvMode ? 'tv' : ''}`}>
       <header className="topbar">
         <div>
           <h1>Metro Christmas Jeopardy</h1>

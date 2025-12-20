@@ -5,6 +5,21 @@
   position: relative;
 }
 
+.app.tv {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+.app.tv main {
+  gap: 0;
+}
+
+.app.tv .topbar {
+  margin-bottom: 0;
+  border-radius: 0;
+}
+
 .topbar {
   display: flex;
   align-items: center;
@@ -504,6 +519,13 @@ button:disabled {
   padding: 14px;
 }
 
+.app.tv .jeopardy-screen {
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  padding: 0;
+}
+
 .board-notice {
   position: fixed;
   top: 16px;
@@ -580,6 +602,17 @@ button:disabled {
   display: grid;
   gap: 8px;
   position: relative;
+}
+
+.app.tv .jeopardy-board {
+  width: 98vw;
+  max-width: none;
+  gap: 12px;
+  padding: 10px;
+}
+
+.app.tv .jeopardy-row {
+  gap: 12px;
 }
 
 .jeopardy-board::before {
