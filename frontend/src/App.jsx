@@ -20,11 +20,38 @@ const SOCKET_URL =
   `${window.location.protocol}//${window.location.hostname}:4000`;
 
 function useSfx() {
+  const ctxRef = useRef(null);
+  const unlockedRef = useRef(false);
+
+  function getCtx() {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return null;
+    if (!ctxRef.current) ctxRef.current = new AudioCtx();
+    return ctxRef.current;
+  }
+
+  async function unlock() {
+    try {
+      const ctx = getCtx();
+      if (!ctx) return false;
+      if (ctx.state === 'suspended') await ctx.resume();
+      unlockedRef.current = true;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function isUnlocked() {
+    const ctx = ctxRef.current;
+    return !!unlockedRef.current && (!ctx || ctx.state === 'running');
+  }
+
   function tone({ freq = 440, type = 'sine', durationMs = 180, gain = 0.06 } = {}) {
     try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
+      const ctx = getCtx();
+      if (!ctx) return;
+      if (!isUnlocked()) return;
       const o = ctx.createOscillator();
       const g = ctx.createGain();
       o.type = type;
@@ -38,7 +65,6 @@ function useSfx() {
       g.gain.exponentialRampToValueAtTime(0.0001, now + durationMs / 1000);
       o.start(now);
       o.stop(now + durationMs / 1000 + 0.02);
-      o.onended = () => ctx.close();
     } catch {
       // ignore (autoplay restrictions, etc)
     }
@@ -63,7 +89,7 @@ function useSfx() {
     tone({ freq: 880, type: 'sine', durationMs: 35, gain: 0.02 });
   }
 
-  return { buzz, correct, wrong, tick };
+  return { buzz, correct, wrong, tick, unlock, isUnlocked };
 }
 
 async function fileToDataUrl(file) {
@@ -93,6 +119,7 @@ function useGameData(showToast, { enableSfx = false } = {}) {
   const [busy, setBusy] = useState(false);
   const sfx = useSfx();
   const lastBuzzRef = useRef({ playerId: null, time: null });
+  const [soundReady, setSoundReady] = useState(false);
 
   async function refreshPlayers() {
     const { data } = await axios.get(`${API_BASE}/players`);
@@ -146,6 +173,26 @@ function useGameData(showToast, { enableSfx = false } = {}) {
       socket.disconnect();
     };
   }, []);
+
+  // TV-only: unlock audio on first user gesture
+  useEffect(() => {
+    if (!enableSfx) return;
+    let cancelled = false;
+    const tryUnlock = async () => {
+      const ok = await sfx.unlock();
+      if (!cancelled) setSoundReady(ok);
+    };
+    const onGesture = () => tryUnlock();
+    // attempt once (may still be blocked)
+    tryUnlock();
+    window.addEventListener('pointerdown', onGesture, { passive: true });
+    window.addEventListener('keydown', onGesture);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('pointerdown', onGesture);
+      window.removeEventListener('keydown', onGesture);
+    };
+  }, [enableSfx]);
 
   // Catch buzzer events even if the activity feed isn't visible:
   useEffect(() => {
@@ -289,6 +336,7 @@ function useGameData(showToast, { enableSfx = false } = {}) {
     gameState,
     events,
     buzzQueue,
+    soundReady,
     busy,
     setBusy,
     refreshPlayers,
@@ -304,7 +352,7 @@ function useGameData(showToast, { enableSfx = false } = {}) {
   };
 }
 
-function TvView({ players, questions, gameState }) {
+function TvView({ players, questions, gameState, soundReady }) {
   const registrationLink = useMemo(() => {
     const base = PUBLIC_JOIN_URL || window.location.origin;
     const url = new URL('/register', base);
@@ -315,15 +363,22 @@ function TvView({ players, questions, gameState }) {
   // When game is active, show the Jeopardy board on the main TV page.
   if (gameState?.status === 'active') {
   return (
-      <BoardView
-        players={players}
-        questions={questions}
-        gameState={gameState}
-        // TV is display-only; picking is done by the current player's phone (or /host).
-        selectCard={async () => {}}
-        interactive={false}
-        tvSound={true}
-      />
+    <>
+        {!soundReady && (
+          <div className="sound-banner">
+            Sound is off (browser). Click/tap once to enable.
+          </div>
+        )}
+        <BoardView
+          players={players}
+          questions={questions}
+          gameState={gameState}
+          // TV is display-only; picking is done by the current player's phone (or /host).
+          selectCard={async () => {}}
+          interactive={false}
+          tvSound={true}
+        />
+      </>
     );
   }
 
@@ -1771,6 +1826,7 @@ function App() {
                 players={game.players}
                 questions={game.questions}
                 gameState={game.gameState}
+                soundReady={game.soundReady}
               />
             }
           />
@@ -1781,6 +1837,7 @@ function App() {
                 players={game.players}
                 questions={game.questions}
                 gameState={game.gameState}
+                soundReady={game.soundReady}
               />
             }
           />
