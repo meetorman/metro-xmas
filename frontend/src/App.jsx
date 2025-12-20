@@ -365,8 +365,15 @@ function TvView({ players, questions, gameState, soundReady }) {
   return (
     <>
         {!soundReady && (
-          <div className="sound-banner">
-            Sound is off (browser). Click/tap once to enable.
+          <div className="sound-gate">
+            <div className="sound-gate-card">
+              <h2>Tap to enable sound</h2>
+              <p>
+                This TV needs one click/tap before it can play buzzer + countdown audio.
+              </p>
+              <p className="muted">(Browser autoplay rule — once enabled, you’re set.)</p>
+              <button className="sound-gate-btn">Enable Sound</button>
+            </div>
           </div>
         )}
         <BoardView
@@ -687,6 +694,26 @@ function AdminView({
     }
   }
 
+  async function deletePlayer(id, name) {
+    if (!id) return;
+    const ok = window.confirm(
+      `Delete player "${name}"?\n\nThis removes their profile, questions, and queued buzzes.`
+    );
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await axios.delete(`${API_BASE}/admin/players/${id}`);
+      showToast('Player deleted');
+      if (scorePlayerId === id) setScorePlayerId('');
+      if (turnPlayerId === id) setTurnPlayerId('');
+    } catch (err) {
+      console.error(err);
+      showToast(err.response?.data?.error || 'Could not delete player', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const selectedQuestions = useMemo(
     () => questions.filter((q) => q.selectedForGame),
     [questions]
@@ -971,7 +998,12 @@ function AdminView({
                   )}
                   <span>{p.name}</span>
                 </div>
-                <span className="muted">{p.score || 0} pts</span>
+                <div className="button-row">
+                  <span className="muted">{p.score || 0} pts</span>
+                  <button className="danger" onClick={() => deletePlayer(p.id, p.name)} disabled={busy}>
+                    Delete
+                  </button>
+                </div>
               </li>
             ))}
         </ul>

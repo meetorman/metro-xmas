@@ -30,8 +30,8 @@ backend:
 frontend:
 	cd frontend && npm run dev -- --host
 
-# Remove generated artifacts (local DB and frontend dist)
-clean: db-clean
+# Remove generated artifacts (keeps local DB safe by default)
+clean:
 	cd frontend && rm -rf dist
 
 db-clean:

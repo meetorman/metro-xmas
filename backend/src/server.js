@@ -470,6 +470,45 @@ app.post('/api/admin/players/:id/score', (req, res) => {
   res.json({ playerId: id, score: newScore });
 });
 
+app.delete('/api/admin/players/:id', (req, res) => {
+  const { id } = req.params;
+
+  const player = db
+    .prepare('SELECT id, name, slug FROM players WHERE id = ?')
+    .get(id);
+  if (!player) return res.status(404).json({ error: 'Player not found' });
+
+  // Remove their questions and any queued buzzes
+  db.prepare('DELETE FROM questions WHERE player_id = ?').run(id);
+  db.prepare('DELETE FROM buzz_queue WHERE player_id = ?').run(id);
+
+  // Clear game state references if needed
+  const state = getGameState();
+  const patch = {};
+  if (state.turn_player_id === id) patch.turn_player_id = null;
+  if (state.last_buzz_player_id === id) {
+    patch.buzzer_locked = 0;
+    patch.last_buzz_player_id = null;
+    patch.last_buzz_time = null;
+  }
+  const updatedState = Object.keys(patch).length ? updateGameState(patch) : state;
+
+  // Finally delete player
+  db.prepare('DELETE FROM players WHERE id = ?').run(id);
+
+  emit(getIo(req), 'players:updated', listPlayers());
+  emit(getIo(req), 'questions:updated', listQuestions());
+  emit(getIo(req), 'game:state', updatedState);
+  emitBuzzQueue(req);
+  logEvent(req, 'player_deleted', `Admin deleted player ${player.name}`, {
+    playerId: id,
+    playerName: player.name,
+    playerSlug: player.slug,
+  });
+
+  res.json({ ok: true });
+});
+
 app.get('/api/admin/events', (req, res) => {
   const limit = req.query.limit;
   res.json(listEvents(limit));
