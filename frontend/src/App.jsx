@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import axios from 'axios';
 import { io as ioClient } from 'socket.io-client';
@@ -18,6 +18,49 @@ const PUBLIC_JOIN_URL = import.meta.env.VITE_PUBLIC_JOIN_URL;
 const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL ||
   `${window.location.protocol}//${window.location.hostname}:4000`;
+
+function useSfx() {
+  function tone({ freq = 440, type = 'sine', durationMs = 180, gain = 0.06 } = {}) {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = type;
+      o.frequency.value = freq;
+      g.gain.value = 0;
+      o.connect(g);
+      g.connect(ctx.destination);
+      const now = ctx.currentTime;
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.exponentialRampToValueAtTime(gain, now + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + durationMs / 1000);
+      o.start(now);
+      o.stop(now + durationMs / 1000 + 0.02);
+      o.onended = () => ctx.close();
+    } catch {
+      // ignore (autoplay restrictions, etc)
+    }
+  }
+
+  function buzz() {
+    tone({ freq: 220, type: 'sawtooth', durationMs: 140, gain: 0.07 });
+    setTimeout(() => tone({ freq: 180, type: 'sawtooth', durationMs: 160, gain: 0.07 }), 90);
+  }
+
+  function correct() {
+    tone({ freq: 523.25, type: 'triangle', durationMs: 120, gain: 0.05 });
+    setTimeout(() => tone({ freq: 659.25, type: 'triangle', durationMs: 140, gain: 0.05 }), 120);
+  }
+
+  function wrong() {
+    tone({ freq: 196, type: 'square', durationMs: 180, gain: 0.05 });
+    setTimeout(() => tone({ freq: 164.81, type: 'square', durationMs: 220, gain: 0.05 }), 120);
+  }
+
+  return { buzz, correct, wrong };
+}
 
 async function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -44,6 +87,8 @@ function useGameData(showToast) {
   const [events, setEvents] = useState([]);
   const [buzzQueue, setBuzzQueue] = useState([]);
   const [busy, setBusy] = useState(false);
+  const sfx = useSfx();
+  const lastBuzzRef = useRef({ playerId: null, time: null });
 
   async function refreshPlayers() {
     const { data } = await axios.get(`${API_BASE}/players`);
@@ -80,6 +125,12 @@ function useGameData(showToast) {
       if (!evt) return;
       setEvents((prev) => [evt, ...prev].slice(0, 200));
     });
+    socket.on('events:new', (evt) => {
+      if (!evt?.type) return;
+      if (evt.type === 'buzz' || evt.type === 'buzz_advance') sfx.buzz();
+      if (evt.type === 'marked_correct') sfx.correct();
+      if (evt.type === 'marked_wrong') sfx.wrong();
+    });
     socket.on('buzz:queue', (q) => setBuzzQueue(Array.isArray(q) ? q : []));
 
     socket.on('connect_error', (err) => {
@@ -90,6 +141,18 @@ function useGameData(showToast) {
       socket.disconnect();
     };
   }, []);
+
+  // Catch buzzer events even if the activity feed isn't visible:
+  useEffect(() => {
+    if (!gameState) return;
+    const locked = !!gameState.buzzer_locked;
+    const pid = gameState.last_buzz_player_id;
+    const t = gameState.last_buzz_time;
+    if (locked && pid && (pid !== lastBuzzRef.current.playerId || t !== lastBuzzRef.current.time)) {
+      lastBuzzRef.current = { playerId: pid, time: t };
+      sfx.buzz();
+    }
+  }, [gameState?.buzzer_locked, gameState?.last_buzz_player_id, gameState?.last_buzz_time]);
 
   async function refreshAll() {
     try {
@@ -245,7 +308,7 @@ function TvView({ players, questions, gameState }) {
 
   // When game is active, show the Jeopardy board on the main TV page.
   if (gameState?.status === 'active') {
-    return (
+  return (
       <BoardView
         players={players}
         questions={questions}
@@ -260,10 +323,10 @@ function TvView({ players, questions, gameState }) {
   return (
     <section className="panel">
       <div className="panel-header">
-        <div>
+      <div>
           <h2>Scan to Join</h2>
           <p>Players scan this code to register and submit questions.</p>
-        </div>
+      </div>
       </div>
       <div className="tv-grid">
         <div className="qr-card">
@@ -391,7 +454,7 @@ function PlayerPortal({ refreshPlayers, showToast }) {
           </label>
           <button type="submit" disabled={busy}>
             Register Player
-          </button>
+        </button>
         </form>
       </div>
     </section>
@@ -641,7 +704,7 @@ function AdminView({
               <button onClick={() => resolveCurrent(false)} disabled={busy}>
                 Mark {buzzedPlayer?.name || gameState.last_buzz_player_id} Wrong
               </button>
-            </div>
+      </div>
           )}
         </div>
 

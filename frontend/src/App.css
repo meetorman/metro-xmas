@@ -2,6 +2,7 @@
   max-width: 1200px;
   margin: 0 auto;
   padding: 32px 24px 48px;
+  position: relative;
 }
 
 .topbar {
@@ -10,25 +11,32 @@
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 16px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(2, 6, 23, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(10px);
 }
 
 .topbar h1 {
   margin: 0;
-  color: #0f172a;
+  color: #eaf2ff;
+  text-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
 }
 
 .subtitle {
   margin: 4px 0 0;
-  color: #475569;
+  color: rgba(230, 240, 255, 0.75);
 }
 
 .tabs {
   display: inline-flex;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.12);
   padding: 6px;
   border-radius: 14px;
-  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.25);
   gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 .tabs button {
@@ -43,24 +51,24 @@
 
 .tabs .tab-link {
   border: none;
-  background: #f1f5f9;
+  background: rgba(255, 255, 255, 0.16);
   padding: 10px 16px;
   border-radius: 10px;
   cursor: pointer;
-  color: #0f172a;
+  color: #eaf2ff;
   transition: all 0.2s ease;
   text-decoration: none;
   font-weight: 700;
 }
 
 .tabs .tab-link:hover {
-  background: #e2e8f0;
+  background: rgba(255, 255, 255, 0.24);
 }
 
 .tabs .tab-link.active {
-  background: #0f172a;
+  background: linear-gradient(90deg, rgba(244, 63, 94, 0.55), rgba(16, 185, 129, 0.50));
   color: #fff;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.25);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
 }
 
 .tabs button.active {
@@ -91,11 +99,11 @@ main {
 }
 
 .panel {
-  background: #fff;
+  background: rgba(255, 255, 255, 0.92);
   border-radius: 16px;
   padding: 18px 18px 22px;
-  box-shadow: 0 10px 35px rgba(15, 23, 42, 0.08);
-  border: 1px solid #e2e8f0;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.35);
 }
 
 .panel-header {
