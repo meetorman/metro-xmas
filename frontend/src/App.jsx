@@ -1654,10 +1654,20 @@ function BuzzerOnly({ buzz, showToast }) {
   const [busy, setBusy] = useState(false);
   const [gameState, setGameState] = useState(null);
   const [questions, setQuestions] = useState([]);
+  const [pressedKey, setPressedKey] = useState(null);
 
   useEffect(() => {
     load();
   }, [slug]);
+
+  const clueKey = `${gameState?.current_question_id || ''}|${gameState?.current_is_placeholder || 0}|${
+    gameState?.current_category || ''
+  }|${gameState?.current_points || ''}`;
+
+  useEffect(() => {
+    // New clue selected → re-enable buzzer for this phone.
+    setPressedKey(null);
+  }, [clueKey]);
 
   async function load() {
     try {
@@ -1696,11 +1706,16 @@ function BuzzerOnly({ buzz, showToast }) {
 
   async function handleBuzz() {
     if (!player) return;
+    // Disable immediately after first tap for this clue.
+    if (pressedKey === clueKey) return;
+    setPressedKey(clueKey);
     setBusy(true);
     try {
       await buzz(player.id);
     } catch (err) {
       console.error(err);
+      // if request failed, allow retry
+      setPressedKey(null);
     } finally {
       setBusy(false);
     }
@@ -1764,8 +1779,12 @@ function BuzzerOnly({ buzz, showToast }) {
             : 'Wait for your turn'
           : 'Waiting for the host to set the first turn'}
       </div>
-      <button className="buzzer-button" onClick={handleBuzz} disabled={busy}>
-        Buzz
+      <button
+        className="buzzer-button"
+        onClick={handleBuzz}
+        disabled={busy || pressedKey === clueKey}
+      >
+        {pressedKey === clueKey ? 'Buzzed' : 'Buzz'}
       </button>
     </div>
   );

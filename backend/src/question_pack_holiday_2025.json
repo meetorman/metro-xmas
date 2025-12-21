@@ -23,14 +23,14 @@
   { "category": "TV & Catchphrases", "points": 800, "questionText": "In \"The Simpsons,\" what is Homer’s favorite exclamation?", "answer": "D’oh!" },
   { "category": "TV & Catchphrases", "points": 1000, "questionText": "In \"Parks and Recreation,\" what town does the show primarily take place in?", "answer": "Pawnee" },
 
-  { "category": "Internet & Memes", "points": 200, "questionText": "A “GIF” is typically pronounced with a hard G or soft G—either is debated—but it stands for Graphics what Format?", "answer": "Interchange" },
+  { "category": "Internet & Memes", "points": 200, "questionText": "A “GIF” stands for Graphics what Format?", "answer": "Interchange" },
   { "category": "Internet & Memes", "points": 400, "questionText": "This short-form video app was formerly known as Musical.ly.", "answer": "TikTok" },
   { "category": "Internet & Memes", "points": 600, "questionText": "The phrase “I can has cheezburger?” is associated with what early meme animal?", "answer": "A cat (LOLCats)" },
   { "category": "Internet & Memes", "points": 800, "questionText": "What does “DM” commonly stand for on social media?", "answer": "Direct Message" },
   { "category": "Internet & Memes", "points": 1000, "questionText": "This streaming platform’s subscribers are often called “Prime” members.", "answer": "Amazon" },
 
   { "category": "Toys, Games & Fun", "points": 200, "questionText": "In Monopoly, what is the highest-value property on the board?", "answer": "Boardwalk" },
-  { "category": "Toys, Games & Fun", "points": 400, "questionText": "In Mario Kart, what item gives you a speed boost on the track?", "answer": "Mushroom" },
+  { "category": "Toys, Games & Fun", "points": 400, "questionText": "In Mario Kart, what item gives you a speed boost?", "answer": "Mushroom" },
   { "category": "Toys, Games & Fun", "points": 600, "questionText": "What color are the classic LEGO minifigure heads traditionally?", "answer": "Yellow" },
   { "category": "Toys, Games & Fun", "points": 800, "questionText": "In chess, which piece can move in an L-shape?", "answer": "Knight" },
   { "category": "Toys, Games & Fun", "points": 1000, "questionText": "In Scrabble, what letter tile is worth 10 points?", "answer": "Q or Z" }

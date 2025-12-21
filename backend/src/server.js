@@ -5,11 +5,17 @@ const { Server: SocketIOServer } = require('socket.io');
 const { v4: uuidv4 } = require('uuid');
 const { db, getGameState, updateGameState } = require('./db');
 const defaultQuestions = require('./default_questions.json');
-const holidayPack2025 = require('./question_pack_holiday_2025.json');
+let holidayPack2025 = null;
+try {
+  holidayPack2025 = require('./question_pack_holiday_2025.json');
+} catch (e) {
+  // If the optional pack file is missing, keep server running with classic defaults.
+  holidayPack2025 = null;
+}
 
 const QUESTION_PACKS = {
   classic: defaultQuestions,
-  holiday2025: holidayPack2025,
+  holiday2025: Array.isArray(holidayPack2025) ? holidayPack2025 : null,
 };
 
 function getIo(req) {
