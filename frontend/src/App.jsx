@@ -19,7 +19,7 @@ const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL ||
   `${window.location.protocol}//${window.location.hostname}:4000`;
 
-function useSfxFiles() {
+function useSfx() {
   const [unlocked, setUnlocked] = useState(false);
   const audioRef = useRef(null);
 
@@ -107,7 +107,7 @@ function useGameData(showToast, { enableSfx = false } = {}) {
   const [events, setEvents] = useState([]);
   const [buzzQueue, setBuzzQueue] = useState([]);
   const [busy, setBusy] = useState(false);
-  const sfx = useSfxFiles();
+  const sfx = useSfx();
   const lastBuzzRef = useRef({ playerId: null, time: null });
   const [soundReady, setSoundReady] = useState(false);
 
