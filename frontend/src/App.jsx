@@ -22,39 +22,70 @@ const SOCKET_URL =
 // Shared audio state (so TV tick + buzzer + stingers all use the same AudioContext)
 let __SFX_CTX = null;
 let __SFX_UNLOCKED = false;
+let __SFX_BROKEN = false;
 
 function useSfx() {
+  function resetCtx() {
+    try {
+      if (__SFX_CTX && __SFX_CTX.state !== 'closed') {
+        __SFX_CTX.close().catch(() => {});
+      }
+    } catch {
+      // ignore
+    }
+    __SFX_CTX = null;
+    __SFX_UNLOCKED = false;
+    __SFX_BROKEN = false;
+  }
+
   function getCtx() {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return null;
-    if (!__SFX_CTX) __SFX_CTX = new AudioCtx();
+    if (!__SFX_CTX) {
+      __SFX_CTX = new AudioCtx({ latencyHint: 'interactive' });
+      __SFX_CTX.onstatechange = () => {
+        if (__SFX_CTX?.state === 'closed') {
+          __SFX_UNLOCKED = false;
+        }
+      };
+    }
     return __SFX_CTX;
   }
 
   async function unlock() {
     try {
+      if (__SFX_BROKEN) resetCtx();
       const ctx = getCtx();
       if (!ctx) return false;
       if (ctx.state === 'suspended') await ctx.resume();
       const ok = ctx.state === 'running';
       __SFX_UNLOCKED = ok;
+      __SFX_BROKEN = !ok;
       return ok;
     } catch {
+      __SFX_BROKEN = true;
       return false;
     }
   }
 
   function isUnlocked() {
     const ctx = __SFX_CTX;
-    return !!__SFX_UNLOCKED && (!ctx || ctx.state === 'running');
+    return !!__SFX_UNLOCKED && !__SFX_BROKEN && (!ctx || ctx.state === 'running');
   }
 
   function tone({ freq = 440, type = 'sine', durationMs = 180, gain = 0.06 } = {}) {
     try {
       // Don't even create an AudioContext until the user has enabled sound.
-      if (!__SFX_UNLOCKED) return;
+      if (!__SFX_UNLOCKED || __SFX_BROKEN) return;
       const ctx = getCtx();
-      if (!ctx || ctx.state !== 'running') return;
+      if (!ctx) return;
+      if (ctx.state !== 'running') {
+        // Output device changes can suspend the context.
+        ctx.resume?.().catch(() => {
+          __SFX_BROKEN = true;
+        });
+        if (ctx.state !== 'running') return;
+      }
       const o = ctx.createOscillator();
       const g = ctx.createGain();
       o.type = type;
@@ -69,7 +100,7 @@ function useSfx() {
       o.start(now);
       o.stop(now + durationMs / 1000 + 0.02);
     } catch {
-      // ignore (autoplay restrictions, etc)
+      __SFX_BROKEN = true;
     }
   }
 
@@ -92,7 +123,7 @@ function useSfx() {
     tone({ freq: 880, type: 'sine', durationMs: 35, gain: 0.02 });
   }
 
-  return { buzz, correct, wrong, tick, unlock, isUnlocked };
+  return { buzz, correct, wrong, tick, unlock, isUnlocked, resetCtx };
 }
 
 async function fileToDataUrl(file) {
@@ -125,6 +156,8 @@ function useGameData(showToast, { enableSfx = false } = {}) {
   const [soundReady, setSoundReady] = useState(false);
 
   async function enableSoundNow() {
+    // If the audio device/renderer errored, reset and retry.
+    sfx.resetCtx?.();
     const ok = await sfx.unlock();
     setSoundReady(ok);
     if (ok) {
