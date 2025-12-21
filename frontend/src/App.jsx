@@ -19,15 +19,16 @@ const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL ||
   `${window.location.protocol}//${window.location.hostname}:4000`;
 
-function useSfx() {
-  const ctxRef = useRef(null);
-  const unlockedRef = useRef(false);
+// Shared audio state (so TV tick + buzzer + stingers all use the same AudioContext)
+let __SFX_CTX = null;
+let __SFX_UNLOCKED = false;
 
+function useSfx() {
   function getCtx() {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return null;
-    if (!ctxRef.current) ctxRef.current = new AudioCtx();
-    return ctxRef.current;
+    if (!__SFX_CTX) __SFX_CTX = new AudioCtx();
+    return __SFX_CTX;
   }
 
   async function unlock() {
@@ -35,23 +36,25 @@ function useSfx() {
       const ctx = getCtx();
       if (!ctx) return false;
       if (ctx.state === 'suspended') await ctx.resume();
-      unlockedRef.current = true;
-      return true;
+      const ok = ctx.state === 'running';
+      __SFX_UNLOCKED = ok;
+      return ok;
     } catch {
       return false;
     }
   }
 
   function isUnlocked() {
-    const ctx = ctxRef.current;
-    return !!unlockedRef.current && (!ctx || ctx.state === 'running');
+    const ctx = __SFX_CTX;
+    return !!__SFX_UNLOCKED && (!ctx || ctx.state === 'running');
   }
 
   function tone({ freq = 440, type = 'sine', durationMs = 180, gain = 0.06 } = {}) {
     try {
+      // Don't even create an AudioContext until the user has enabled sound.
+      if (!__SFX_UNLOCKED) return;
       const ctx = getCtx();
-      if (!ctx) return;
-      if (!isUnlocked()) return;
+      if (!ctx || ctx.state !== 'running') return;
       const o = ctx.createOscillator();
       const g = ctx.createGain();
       o.type = type;
@@ -121,6 +124,16 @@ function useGameData(showToast, { enableSfx = false } = {}) {
   const lastBuzzRef = useRef({ playerId: null, time: null });
   const [soundReady, setSoundReady] = useState(false);
 
+  async function enableSoundNow() {
+    const ok = await sfx.unlock();
+    setSoundReady(ok);
+    if (ok) {
+      // audible confirmation
+      sfx.correct();
+    }
+    return ok;
+  }
+
   async function refreshPlayers() {
     const { data } = await axios.get(`${API_BASE}/players`);
     setPlayers(data);
@@ -183,8 +196,6 @@ function useGameData(showToast, { enableSfx = false } = {}) {
       if (!cancelled) setSoundReady(ok);
     };
     const onGesture = () => tryUnlock();
-    // attempt once (may still be blocked)
-    tryUnlock();
     window.addEventListener('pointerdown', onGesture, { passive: true });
     window.addEventListener('keydown', onGesture);
     return () => {
@@ -337,6 +348,7 @@ function useGameData(showToast, { enableSfx = false } = {}) {
     events,
     buzzQueue,
     soundReady,
+    enableSoundNow,
     busy,
     setBusy,
     refreshPlayers,
@@ -352,7 +364,7 @@ function useGameData(showToast, { enableSfx = false } = {}) {
   };
 }
 
-function TvView({ players, questions, gameState, soundReady }) {
+function TvView({ players, questions, gameState, soundReady, enableSoundNow }) {
   const registrationLink = useMemo(() => {
     const base = PUBLIC_JOIN_URL || window.location.origin;
     const url = new URL('/register', base);
@@ -372,7 +384,9 @@ function TvView({ players, questions, gameState, soundReady }) {
                 This TV needs one click/tap before it can play buzzer + countdown audio.
               </p>
               <p className="muted">(Browser autoplay rule — once enabled, you’re set.)</p>
-              <button className="sound-gate-btn">Enable Sound</button>
+              <button className="sound-gate-btn" onClick={enableSoundNow}>
+                Enable Sound
+              </button>
             </div>
           </div>
         )}
@@ -1859,6 +1873,7 @@ function App() {
                 questions={game.questions}
                 gameState={game.gameState}
                 soundReady={game.soundReady}
+                enableSoundNow={game.enableSoundNow}
               />
             }
           />
@@ -1870,6 +1885,7 @@ function App() {
                 questions={game.questions}
                 gameState={game.gameState}
                 soundReady={game.soundReady}
+                enableSoundNow={game.enableSoundNow}
               />
             }
           />
