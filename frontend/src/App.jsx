@@ -21,15 +21,84 @@ const SOCKET_URL =
 
 function useTTS() {
   const synthRef = useRef(null);
+  const voicesRef = useRef([]);
   const [isSupported, setIsSupported] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [voicesLoaded, setVoicesLoaded] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       synthRef.current = window.speechSynthesis;
       setIsSupported(true);
+
+      // Voices load asynchronously, so we need to wait for them
+      const loadVoices = () => {
+        const voices = synthRef.current.getVoices();
+        voicesRef.current = voices;
+        if (voices.length > 0) {
+          setVoicesLoaded(true);
+        }
+      };
+
+      // Try to load voices immediately
+      loadVoices();
+
+      // Also listen for when voices are loaded
+      if (synthRef.current.onvoiceschanged !== undefined) {
+        synthRef.current.onvoiceschanged = loadVoices;
+      }
+
+      // Fallback: try loading again after a short delay
+      setTimeout(loadVoices, 100);
     }
   }, []);
+
+  function findBestVoice(voices) {
+    if (!voices || voices.length === 0) return null;
+
+    // Priority order for better-sounding voices
+    const preferredNames = [
+      // Premium/Neural voices (best quality)
+      'Samantha', 'Alex', 'Victoria', 'Daniel', 'Fiona', 'Karen', 'Moira', 'Tessa',
+      // Google Cloud voices (usually good)
+      'Google', 'en-US-Neural', 'en-GB-Neural', 'en-AU-Neural',
+      // Microsoft voices
+      'Microsoft', 'Zira', 'David', 'Mark',
+      // Enhanced voices
+      'Enhanced', 'Neural', 'Premium', 'WaveNet',
+      // Other natural-sounding voices
+      'Siri', 'Samantha Enhanced', 'Alex Enhanced'
+    ];
+
+    // First, try to find voices with preferred names
+    for (const name of preferredNames) {
+      const voice = voices.find((v) => 
+        v.name.includes(name) && v.lang.startsWith('en')
+      );
+      if (voice) return voice;
+    }
+
+    // Then try to find any neural/enhanced/premium voice
+    const neuralVoice = voices.find((v) => 
+      (v.name.toLowerCase().includes('neural') || 
+       v.name.toLowerCase().includes('enhanced') ||
+       v.name.toLowerCase().includes('premium') ||
+       v.name.toLowerCase().includes('wavenet')) &&
+      v.lang.startsWith('en')
+    );
+    if (neuralVoice) return neuralVoice;
+
+    // Then try to find any English voice that's not obviously robotic
+    const englishVoices = voices.filter((v) => v.lang.startsWith('en'));
+    const nonRobotic = englishVoices.find((v) => 
+      !v.name.toLowerCase().includes('compact') &&
+      !v.name.toLowerCase().includes('novelty')
+    );
+    if (nonRobotic) return nonRobotic;
+
+    // Fallback to first English voice
+    return englishVoices[0] || voices[0];
+  }
 
   function speak(text, options = {}) {
     if (!isSupported || !synthRef.current) return;
@@ -38,17 +107,27 @@ function useTTS() {
     synthRef.current.cancel();
     
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = options.rate || 0.9;
+    
+    // Better default parameters for more natural speech
+    utterance.rate = options.rate || 0.95;  // Slightly slower for clarity
     utterance.pitch = options.pitch || 1.0;
     utterance.volume = options.volume || 1.0;
     
-    // Try to use a more natural voice if available
+    // Get the best available voice
     const voices = synthRef.current.getVoices();
-    const preferredVoice = voices.find(
-      (v) => v.name.includes('Samantha') || v.name.includes('Alex') || v.name.includes('Google')
-    ) || voices.find((v) => v.lang.startsWith('en'));
-    if (preferredVoice) {
-      utterance.voice = preferredVoice;
+    if (voices.length === 0 && voicesRef.current.length > 0) {
+      // Use cached voices if current list is empty
+      const bestVoice = findBestVoice(voicesRef.current);
+      if (bestVoice) {
+        utterance.voice = bestVoice;
+      }
+    } else {
+      const bestVoice = findBestVoice(voices);
+      if (bestVoice) {
+        utterance.voice = bestVoice;
+        // Update cache
+        voicesRef.current = voices;
+      }
     }
 
     utterance.onstart = () => setIsSpeaking(true);
@@ -65,9 +144,17 @@ function useTTS() {
     }
   }
 
+  function getCurrentVoiceName() {
+    if (!voicesLoaded || voicesRef.current.length === 0) return null;
+    const best = findBestVoice(voicesRef.current);
+    return best ? best.name : null;
+  }
+
   return {
     isSupported,
     isSpeaking,
+    voicesLoaded,
+    getCurrentVoiceName,
     speak,
     stop,
   };
@@ -1305,18 +1392,25 @@ function AdminView({
               <p className="muted">Clue</p>
               <p style={{ marginTop: 6, fontWeight: 800 }}>{clueText || '—'}</p>
               {adminTts.isSupported && clueText && clueText !== '—' ? (
-                <button
-                  onClick={() => {
-                    if (adminTts.isSpeaking) {
-                      adminTts.stop();
-                    } else {
-                      adminTts.speak(clueText, { rate: 0.85 });
-                    }
-                  }}
-                  style={{ marginTop: 8, padding: '6px 12px', fontSize: '0.85rem' }}
-                >
-                  {adminTts.isSpeaking ? '⏸ Stop' : '🔊 Read Question'}
-                </button>
+                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <button
+                    onClick={() => {
+                      if (adminTts.isSpeaking) {
+                        adminTts.stop();
+                      } else {
+                        adminTts.speak(clueText, { rate: 0.85 });
+                      }
+                    }}
+                    style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                  >
+                    {adminTts.isSpeaking ? '⏸ Stop' : '🔊 Read Question'}
+                  </button>
+                  {adminTts.voicesLoaded && adminTts.getCurrentVoiceName() && (
+                    <span className="muted" style={{ fontSize: '0.7rem' }}>
+                      Voice: {adminTts.getCurrentVoiceName()}
+                    </span>
+                  )}
+                </div>
               ) : null}
               <p className="muted" style={{ marginTop: 10 }}>
                 Correct answer: <strong>{answerText || '—'}</strong>
@@ -2289,7 +2383,7 @@ function BoardView({
             {(() => {
               const clueText = currentQuestion?.questionText || gameState?.current_clue_text || '';
               return tts.isSupported && clueText && clueText !== 'N/A' ? (
-                <div className="clue-actions" style={{ marginTop: 16, display: 'flex', gap: 10, justifyContent: 'center' }}>
+                <div className="clue-actions" style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
                   <button
                     onClick={() => {
                       if (tts.isSpeaking) {
@@ -2302,6 +2396,11 @@ function BoardView({
                   >
                     {tts.isSpeaking ? '⏸ Stop Reading' : '🔊 Read Question'}
                   </button>
+                  {tts.voicesLoaded && tts.getCurrentVoiceName() && (
+                    <span className="muted" style={{ fontSize: '0.75rem' }}>
+                      Voice: {tts.getCurrentVoiceName()}
+                    </span>
+                  )}
                 </div>
               ) : null;
             })()}
