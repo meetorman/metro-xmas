@@ -19,6 +19,60 @@ const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL ||
   `${window.location.protocol}//${window.location.hostname}:4000`;
 
+function useTTS() {
+  const synthRef = useRef(null);
+  const [isSupported, setIsSupported] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      synthRef.current = window.speechSynthesis;
+      setIsSupported(true);
+    }
+  }, []);
+
+  function speak(text, options = {}) {
+    if (!isSupported || !synthRef.current) return;
+    
+    // Cancel any ongoing speech
+    synthRef.current.cancel();
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = options.rate || 0.9;
+    utterance.pitch = options.pitch || 1.0;
+    utterance.volume = options.volume || 1.0;
+    
+    // Try to use a more natural voice if available
+    const voices = synthRef.current.getVoices();
+    const preferredVoice = voices.find(
+      (v) => v.name.includes('Samantha') || v.name.includes('Alex') || v.name.includes('Google')
+    ) || voices.find((v) => v.lang.startsWith('en'));
+    if (preferredVoice) {
+      utterance.voice = preferredVoice;
+    }
+
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+
+    synthRef.current.speak(utterance);
+  }
+
+  function stop() {
+    if (synthRef.current) {
+      synthRef.current.cancel();
+      setIsSpeaking(false);
+    }
+  }
+
+  return {
+    isSupported,
+    isSpeaking,
+    speak,
+    stop,
+  };
+}
+
 function useSfx() {
   const [unlocked, setUnlocked] = useState(false);
   const audioRef = useRef(null);
@@ -834,6 +888,7 @@ function AdminView({
   const [scorePlayerId, setScorePlayerId] = useState('');
   const [scoreDelta, setScoreDelta] = useState('');
   const [scoreSet, setScoreSet] = useState('');
+  const adminTts = useTTS();
   const buzzedPlayer = useMemo(() => {
     if (!gameState?.last_buzz_player_id) return null;
     return players.find((p) => p.id === gameState.last_buzz_player_id) || null;
@@ -898,6 +953,21 @@ function AdminView({
     } catch (err) {
       console.error(err);
       showToast('Could not update', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function skipCurrent() {
+    if (!gameState?.current_question_id && !gameState?.current_is_placeholder) return;
+    setBusy(true);
+    try {
+      await axios.post(`${API_BASE}/admin/skip-current`);
+      await Promise.all([refreshState(), refreshQuestions()]);
+      showToast('Question skipped');
+    } catch (err) {
+      console.error(err);
+      showToast('Could not skip', 'error');
     } finally {
       setBusy(false);
     }
@@ -1128,18 +1198,27 @@ function AdminView({
                 ).toLocaleTimeString()}`
               : '—'}
           </p>
-          {gameState?.last_buzz_player_id && clueActive && (
+          {clueActive && (
             <div className="button-row">
-              <button onClick={() => resolveCurrent(true)} disabled={busy}>
-                Mark {buzzedPlayer?.name || gameState.last_buzz_player_id} Correct
+              {gameState?.last_buzz_player_id ? (
+                <>
+                  <button onClick={() => resolveCurrent(true)} disabled={busy}>
+                    Mark {buzzedPlayer?.name || gameState.last_buzz_player_id} Correct
+                  </button>
+                  <button onClick={() => resolveCurrent(false)} disabled={busy}>
+                    Mark {buzzedPlayer?.name || gameState.last_buzz_player_id} Wrong
+                  </button>
+                </>
+              ) : null}
+              <button onClick={skipCurrent} disabled={busy} className="danger">
+                Skip Question (No One Knows)
               </button>
-              <button onClick={() => resolveCurrent(false)} disabled={busy}>
-                Mark {buzzedPlayer?.name || gameState.last_buzz_player_id} Wrong
-              </button>
-              <span className="muted" style={{ marginLeft: 8 }}>
-                Answer: <strong>{answerText || '—'}</strong>
-              </span>
-      </div>
+              {gameState?.last_buzz_player_id && (
+                <span className="muted" style={{ marginLeft: 8 }}>
+                  Answer: <strong>{answerText || '—'}</strong>
+                </span>
+              )}
+            </div>
           )}
         </div>
 
@@ -1225,6 +1304,20 @@ function AdminView({
             <div className="state-block" style={{ marginBottom: 12 }}>
               <p className="muted">Clue</p>
               <p style={{ marginTop: 6, fontWeight: 800 }}>{clueText || '—'}</p>
+              {adminTts.isSupported && clueText && clueText !== '—' ? (
+                <button
+                  onClick={() => {
+                    if (adminTts.isSpeaking) {
+                      adminTts.stop();
+                    } else {
+                      adminTts.speak(clueText, { rate: 0.85 });
+                    }
+                  }}
+                  style={{ marginTop: 8, padding: '6px 12px', fontSize: '0.85rem' }}
+                >
+                  {adminTts.isSpeaking ? '⏸ Stop' : '🔊 Read Question'}
+                </button>
+              ) : null}
               <p className="muted" style={{ marginTop: 10 }}>
                 Correct answer: <strong>{answerText || '—'}</strong>
               </p>
@@ -1935,6 +2028,7 @@ function BoardView({
   const [now, setNow] = useState(Date.now());
   const [showClue, setShowClue] = useState(true);
   const [notice, setNotice] = useState('');
+  const tts = useTTS();
 
   const selected = useMemo(
     () =>
@@ -2191,6 +2285,26 @@ function BoardView({
                 gameState?.current_clue_text ||
                 'N/A'}
             </div>
+            
+            {(() => {
+              const clueText = currentQuestion?.questionText || gameState?.current_clue_text || '';
+              return tts.isSupported && clueText && clueText !== 'N/A' ? (
+                <div className="clue-actions" style={{ marginTop: 16, display: 'flex', gap: 10, justifyContent: 'center' }}>
+                  <button
+                    onClick={() => {
+                      if (tts.isSpeaking) {
+                        tts.stop();
+                      } else {
+                        tts.speak(clueText, { rate: 0.85 });
+                      }
+                    }}
+                    style={{ padding: '8px 16px', fontSize: '0.9rem' }}
+                  >
+                    {tts.isSpeaking ? '⏸ Stop Reading' : '🔊 Read Question'}
+                  </button>
+                </div>
+              ) : null;
+            })()}
 
             <div className="buzz-strip">
               {buzzedPlayer ? (

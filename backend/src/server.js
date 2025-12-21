@@ -988,6 +988,31 @@ app.post('/api/game/buzz', (req, res) => {
   res.json({ ok: true, queued: false, state: updated });
 });
 
+app.post('/api/admin/skip-current', (req, res) => {
+  const state = getGameState();
+  if (!state.current_question_id && !state.current_is_placeholder) {
+    return res.status(400).json({ error: 'No current question' });
+  }
+
+  clearBuzzQueue();
+  const updatedState = updateGameState({
+    current_question_id: null,
+    current_category: null,
+    current_points: null,
+    current_is_placeholder: 0,
+    current_clue_text: null,
+    current_answer_text: null,
+    buzzer_locked: 0,
+    last_buzz_player_id: null,
+    last_buzz_time: null,
+    // Keep the same turn player so they can pick again
+  });
+  emit(getIo(req), 'game:state', updatedState);
+  emitBuzzQueue(req);
+  logEvent(req, 'question_skipped', 'Question skipped (no one knew the answer)', {});
+  res.json(updatedState);
+});
+
 app.post('/api/admin/resolve-current', (req, res) => {
   const { playerId, correct } = req.body || {};
   if (!playerId || typeof correct !== 'boolean') {
