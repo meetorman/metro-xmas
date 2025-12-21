@@ -1744,7 +1744,10 @@ function BoardView({
   useEffect(() => {
     if (!tvSound) return;
     if (!sfxPlayer) return;
-    if (!clueActive) {
+    const buzzed = !!gameState?.last_buzz_time || !!gameState?.buzzer_locked;
+
+    // Music should play from tile selection until first buzz.
+    if (!clueActive || buzzed) {
       sfxPlayer.stopCountdown?.();
       lastClueKeyRef.current = null;
       return;
@@ -1755,7 +1758,7 @@ function BoardView({
       sfxPlayer.startCountdown?.();
       lastClueKeyRef.current = clueKey;
     }
-  }, [tvSound, clueActive, clueKey, sfxPlayer]);
+  }, [tvSound, clueActive, clueKey, sfxPlayer, gameState?.last_buzz_time, gameState?.buzzer_locked]);
 
   useEffect(() => {
     if (clueActive) setShowClue(true);
