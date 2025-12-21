@@ -28,11 +28,13 @@ function useSfx() {
     const meta = metaRef.current?.[name];
     if (meta?.updatedAt) return `/api/sfx/${name}?v=${encodeURIComponent(meta.updatedAt)}`;
     if (name === 'countdown') return `/sfx/countdown.mp3`;
+    if (name === 'timeout') return `/sfx/buzzer.wav`;
     return `/sfx/${name}.wav`;
   }
 
   function fallbackSrcFor(name) {
     if (name === 'countdown') return `/sfx/countdown.mp3`;
+    if (name === 'timeout') return `/sfx/buzzer.wav`;
     return `/sfx/${name}.wav`;
   }
 
@@ -62,6 +64,7 @@ function useSfx() {
         buzzer: new Audio(srcFor('buzzer')),
         tick: new Audio(srcFor('tick')),
         countdown: new Audio(srcFor('countdown')),
+        timeout: new Audio(srcFor('timeout')),
         correct: new Audio(srcFor('correct')),
         wrong: new Audio(srcFor('wrong')),
       };
@@ -83,6 +86,7 @@ function useSfx() {
       audioRef.current.correct.volume = 1.0;
       audioRef.current.wrong.volume = 1.0;
       audioRef.current.buzzer.volume = 1.0;
+      audioRef.current.timeout.volume = 1.0;
     }
     return audioRef.current;
   }
@@ -95,7 +99,7 @@ function useSfx() {
     metaRef.current = m;
     // refresh sources so next play uses updated audio
     if (audioRef.current) {
-      for (const key of ['buzzer', 'tick', 'countdown', 'correct', 'wrong']) {
+      for (const key of ['buzzer', 'tick', 'countdown', 'timeout', 'correct', 'wrong']) {
         const el = audioRef.current[key];
         if (!el) continue;
         el.__fallbackApplied = false;
@@ -157,6 +161,25 @@ function useSfx() {
     } catch {}
   }
 
+  function timeUp() {
+    if (!unlocked) return;
+    const a = ensureAudio();
+    const el = a.timeout || a.buzzer;
+    if (!el) return;
+    // Loud + annoying: triple beep
+    const playOnce = (delay) => {
+      setTimeout(() => {
+        try {
+          el.currentTime = 0;
+          el.play().catch(() => {});
+        } catch {}
+      }, delay);
+    };
+    playOnce(0);
+    playOnce(250);
+    playOnce(500);
+  }
+
   return {
     unlock,
     isUnlocked: unlocked,
@@ -165,6 +188,7 @@ function useSfx() {
     tick: () => play('tick'),
     startCountdown,
     stopCountdown,
+    timeUp,
     correct: () => play('correct'),
     wrong: () => play('wrong'),
   };
@@ -1187,7 +1211,7 @@ function AdminView({
             <p>Upload WAV files and test playback.</p>
           </div>
         </div>
-        {['buzzer', 'tick', 'countdown', 'correct', 'wrong'].map((name) => (
+        {['buzzer', 'tick', 'countdown', 'timeout', 'correct', 'wrong'].map((name) => (
           <div key={name} className="row" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
             <strong style={{ width: 90, textTransform: 'capitalize' }}>{name}</strong>
             <input
@@ -1758,6 +1782,7 @@ function BoardView({
   tvSound = false,
   sfxPlayer = null,
 }) {
+  const ANSWER_SECONDS = 10;
   const money = [200, 400, 600, 800, 1000];
   const [naOpen, setNaOpen] = useState(false);
   const [naInfo, setNaInfo] = useState({ category: '', points: 0 });
@@ -1829,11 +1854,17 @@ function BoardView({
   }, [players, gameState?.turn_player_id]);
 
   const countdown = useMemo(() => {
-    // Start 30s when someone buzzes; otherwise show 30.
-    if (!gameState?.last_buzz_time) return 30;
-    const started = new Date(gameState.last_buzz_time).getTime();
+    // Start 10s when someone buzzes; otherwise show 10.
+    if (!gameState?.last_buzz_time) return ANSWER_SECONDS;
+    let started = new Date(gameState.last_buzz_time).getTime();
+    // If we intentionally delayed the buzz sound to guarantee 5s of music, align the timer
+    // start to that same effective moment so players don't lose time.
+    const clueStart = clueStartMsRef.current;
+    if (clueStart && started - clueStart < CLUE_MUSIC_MIN_MS) {
+      started = clueStart + CLUE_MUSIC_MIN_MS;
+    }
     const elapsed = (now - started) / 1000;
-    const remaining = Math.max(0, Math.ceil(30 - elapsed));
+    const remaining = Math.max(0, Math.ceil(ANSWER_SECONDS - elapsed));
     return remaining;
   }, [gameState?.last_buzz_time, now]);
 
@@ -1873,6 +1904,18 @@ function BoardView({
     lastTickRef.current = countdown;
     sfxPlayer?.tick?.();
   }, [tvSound, countdown, gameState?.last_buzz_time, sfxPlayer]);
+
+  // TV-only: loud time-up alarm when countdown hits 0
+  const lastTimeUpRef = useRef(null);
+  useEffect(() => {
+    if (!tvSound) return;
+    if (!gameState?.last_buzz_time) return;
+    if (countdown !== 0) return;
+    const key = `${clueKey}|${gameState.last_buzz_time}`;
+    if (lastTimeUpRef.current === key) return;
+    lastTimeUpRef.current = key;
+    sfxPlayer?.timeUp?.();
+  }, [tvSound, countdown, clueKey, gameState?.last_buzz_time, sfxPlayer]);
 
   // TV-only countdown music while a clue is active
   const lastClueKeyRef = useRef(null);
