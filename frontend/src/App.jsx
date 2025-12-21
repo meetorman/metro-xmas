@@ -2212,21 +2212,50 @@ function BoardView({
     return remaining;
   }, [now, clueKey]);
 
-  // Store answer when clue is active (before it gets cleared)
+  // Track previous clueActive state to detect transitions
+  const prevClueActiveRef = useRef(clueActive);
+  
+  // Store answer whenever we have it available - try multiple sources
   useEffect(() => {
     if (clueActive) {
-      const answer = currentQuestion?.answer || gameState?.current_answer_text || '';
+      // Try to get answer from currentQuestion first (most reliable)
+      let answer = currentQuestion?.answer || '';
+      
+      // If not found, try gameState (for placeholders)
+      if (!answer) {
+        answer = gameState?.current_answer_text || '';
+      }
+      
+      // If still not found and we have a question ID, try to find it in questions array
+      if (!answer && gameState?.current_question_id) {
+        const q = questions.find((q) => q.id === gameState.current_question_id);
+        answer = q?.answer || '';
+      }
+      
       if (answer && answer !== 'N/A' && answer.trim()) {
         lastAnswerRef.current = answer;
       }
     }
-  }, [clueKey, clueActive, currentQuestion, gameState?.current_answer_text]);
+  }, [clueKey, clueActive, currentQuestion, gameState?.current_answer_text, gameState?.current_question_id, questions]);
 
   useEffect(() => {
-    if (!clueActive) {
+    const wasActive = prevClueActiveRef.current;
+    const isActive = clueActive;
+    prevClueActiveRef.current = isActive;
+
+    // Detect transition from active to inactive
+    if (wasActive && !isActive) {
       // When clue becomes inactive, show answer reveal if we have a stored answer
-      const answer = lastAnswerRef.current;
-      if (answer && answer.trim()) {
+      let answer = lastAnswerRef.current;
+      
+      // Fallback: try to get answer from questions array if ref is empty
+      if (!answer && gameState?.current_question_id) {
+        const q = questions.find((q) => q.id === gameState.current_question_id);
+        answer = q?.answer || '';
+        if (answer) lastAnswerRef.current = answer;
+      }
+      
+      if (answer && answer.trim() && answer !== 'N/A') {
         setRevealAnswerText(answer);
         setShowAnswerReveal(true);
         // Auto-hide after 5 seconds
@@ -2239,6 +2268,11 @@ function BoardView({
       }
       return;
     }
+
+    if (!isActive) {
+      return;
+    }
+
     // When a new clue is selected, mark start time and reset buzz-play tracking.
     clueStartMsRef.current = Date.now();
     buzzPlayedForClueRef.current = null;
@@ -2253,7 +2287,7 @@ function BoardView({
     }
     setShowAnswerReveal(false);
     setRevealAnswerText('');
-    lastAnswerRef.current = null;
+    // Don't clear lastAnswerRef here - we need it for the reveal
   }, [clueKey, clueActive]);
 
   // Auto-read question when a new clue appears (TV only)
