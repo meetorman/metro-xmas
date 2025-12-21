@@ -762,12 +762,30 @@ function AdminView({
   async function seedDefaults() {
     setBusy(true);
     try {
-      await axios.post(`${API_BASE}/admin/seed-defaults`, { selectForGame: true });
+      await axios.post(`${API_BASE}/admin/seed-defaults`, { selectForGame: true, pack: 'holiday2025' });
       await refreshQuestions();
-      showToast('Default questions added');
+      showToast('New question pack seeded');
     } catch (err) {
       console.error(err);
       showToast('Could not add defaults', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resetForNewGame() {
+    const ok = window.confirm(
+      'Reset for a new game?\n\nThis will:\n- Reset ALL scores to 0\n- Delete ALL questions\n- Clear current clue/turn/buzzer\n\nPlayers and photos will be kept.'
+    );
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await axios.post(`${API_BASE}/admin/reset-for-new-game`, {});
+      await Promise.all([refreshState(), refreshQuestions()]);
+      showToast('Reset complete');
+    } catch (err) {
+      console.error(err);
+      showToast(err.response?.data?.error || 'Could not reset', 'error');
     } finally {
       setBusy(false);
     }
@@ -913,6 +931,9 @@ function AdminView({
               End Game
             </button>
           )}
+          <button onClick={resetForNewGame} disabled={busy}>
+            New Game (keep players)
+          </button>
           <button onClick={resetGame} disabled={busy}>
             Reset
           </button>
@@ -1215,7 +1236,7 @@ function AdminView({
             <p>No questions yet.</p>
             <div className="button-row" style={{ marginTop: 10 }}>
               <button onClick={seedDefaults} disabled={busy}>
-                Add Default Questions
+                Seed New Question Pack
               </button>
             </div>
           </div>

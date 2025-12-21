@@ -5,6 +5,12 @@ const { Server: SocketIOServer } = require('socket.io');
 const { v4: uuidv4 } = require('uuid');
 const { db, getGameState, updateGameState } = require('./db');
 const defaultQuestions = require('./default_questions.json');
+const holidayPack2025 = require('./question_pack_holiday_2025.json');
+
+const QUESTION_PACKS = {
+  classic: defaultQuestions,
+  holiday2025: holidayPack2025,
+};
 
 function getIo(req) {
   return req.app.get('io') || null;
@@ -157,8 +163,9 @@ function findDefaultQuestion(category, points) {
   if (!category || !Number.isFinite(points)) return null;
   const cat = String(category).trim().toLowerCase();
   const pts = Math.trunc(points);
+  const pool = QUESTION_PACKS.holiday2025 || defaultQuestions;
   return (
-    defaultQuestions.find(
+    pool.find(
       (q) => String(q.category).trim().toLowerCase() === cat && q.points === pts
     ) || null
   );
@@ -195,9 +202,10 @@ function ensureSystemPlayer() {
   };
 }
 
-function seedDefaultQuestions({ selectForGame = true } = {}) {
+function seedDefaultQuestions({ selectForGame = true, pack = 'holiday2025' } = {}) {
   const system = ensureSystemPlayer();
   let inserted = 0;
+  const pool = QUESTION_PACKS[pack] || QUESTION_PACKS.holiday2025 || defaultQuestions;
 
   const existsStmt = db.prepare(
     `SELECT 1 FROM questions
@@ -210,7 +218,7 @@ function seedDefaultQuestions({ selectForGame = true } = {}) {
 
   const now = new Date().toISOString();
   const tx = db.transaction(() => {
-    for (const q of defaultQuestions) {
+    for (const q of pool) {
       const cat = q.category ? String(q.category).trim() : null;
       const pts = Number.isFinite(q.points) ? Math.trunc(q.points) : null;
       const qText = String(q.questionText || '').trim();
@@ -456,17 +464,56 @@ app.post('/api/admin/questions/:id/select', (req, res) => {
 });
 
 app.post('/api/admin/seed-defaults', (req, res) => {
-  const { selectForGame } = req.body || {};
+  const { selectForGame, pack } = req.body || {};
   const result = seedDefaultQuestions({
     selectForGame: selectForGame === undefined ? true : !!selectForGame,
+    pack: pack || 'holiday2025',
   });
   emit(getIo(req), 'players:updated', listPlayers());
   emit(getIo(req), 'questions:updated', listQuestions());
   logEvent(req, 'seed_defaults', `Seeded default questions (+${result.inserted})`, {
     inserted: result.inserted,
     selectForGame: selectForGame === undefined ? true : !!selectForGame,
+    pack: pack || 'holiday2025',
   });
   res.json(result);
+});
+
+app.get('/api/admin/question-packs', (req, res) => {
+  res.json(
+    Object.keys(QUESTION_PACKS).map((k) => ({
+      key: k,
+      count: Array.isArray(QUESTION_PACKS[k]) ? QUESTION_PACKS[k].length : 0,
+    }))
+  );
+});
+
+app.post('/api/admin/reset-for-new-game', (req, res) => {
+  // Keep players/photos, but reset everything else.
+  db.prepare('UPDATE players SET score = 0').run();
+  db.prepare('DELETE FROM questions').run();
+  clearBuzzQueue();
+
+  const state = updateGameState({
+    status: 'waiting',
+    current_question_id: null,
+    current_category: null,
+    current_points: null,
+    current_is_placeholder: 0,
+    current_clue_text: null,
+    current_answer_text: null,
+    turn_player_id: null,
+    buzzer_locked: 0,
+    last_buzz_player_id: null,
+    last_buzz_time: null,
+  });
+
+  emit(getIo(req), 'players:updated', listPlayers());
+  emit(getIo(req), 'questions:updated', listQuestions());
+  emit(getIo(req), 'game:state', state);
+  emitBuzzQueue(req);
+  logEvent(req, 'reset_new_game', 'Reset questions + scores (kept players/photos)', {});
+  res.json({ ok: true, state });
 });
 
 app.post('/api/admin/set-turn', (req, res) => {
