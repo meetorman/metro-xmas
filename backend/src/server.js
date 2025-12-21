@@ -101,7 +101,7 @@ function listEvents(limit = 100) {
 function normalizeSfxName(name) {
   const raw = String(name || '').trim().toLowerCase();
   const base = raw.endsWith('.wav') ? raw.slice(0, -4) : raw;
-  if (!['buzzer', 'tick', 'correct', 'wrong'].includes(base)) return null;
+  if (!['buzzer', 'tick', 'countdown', 'correct', 'wrong'].includes(base)) return null;
   return base;
 }
 

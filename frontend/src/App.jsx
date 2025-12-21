@@ -27,6 +27,7 @@ function useSfx() {
   function srcFor(name) {
     const meta = metaRef.current?.[name];
     if (meta?.updatedAt) return `/api/sfx/${name}?v=${encodeURIComponent(meta.updatedAt)}`;
+    if (name === 'countdown') return `/sfx/countdown.mp3`;
     return `/sfx/${name}.wav`;
   }
 
@@ -35,6 +36,7 @@ function useSfx() {
       audioRef.current = {
         buzzer: new Audio(srcFor('buzzer')),
         tick: new Audio(srcFor('tick')),
+        countdown: new Audio(srcFor('countdown')),
         correct: new Audio(srcFor('correct')),
         wrong: new Audio(srcFor('wrong')),
       };
@@ -43,6 +45,9 @@ function useSfx() {
         a.preload = 'auto';
         a.volume = 1.0;
       });
+      // background countdown music
+      audioRef.current.countdown.loop = true;
+      audioRef.current.countdown.volume = 0.35;
     }
     return audioRef.current;
   }
@@ -57,6 +62,7 @@ function useSfx() {
     if (audioRef.current) {
       audioRef.current.buzzer.src = srcFor('buzzer');
       audioRef.current.tick.src = srcFor('tick');
+      audioRef.current.countdown.src = srcFor('countdown');
       audioRef.current.correct.src = srcFor('correct');
       audioRef.current.wrong.src = srcFor('wrong');
     }
@@ -94,12 +100,30 @@ function useSfx() {
     }
   }
 
+  function startCountdown() {
+    if (!unlocked) return;
+    const a = ensureAudio();
+    try {
+      a.countdown.play().catch(() => {});
+    } catch {}
+  }
+
+  function stopCountdown() {
+    const a = ensureAudio();
+    try {
+      a.countdown.pause();
+      a.countdown.currentTime = 0;
+    } catch {}
+  }
+
   return {
     unlock,
     isUnlocked: unlocked,
     setMeta,
     buzz: () => play('buzzer'),
     tick: () => play('tick'),
+    startCountdown,
+    stopCountdown,
     correct: () => play('correct'),
     wrong: () => play('wrong'),
   };
@@ -366,6 +390,7 @@ function useGameData(showToast, { enableSfx = false } = {}) {
     soundReady,
     enableSoundNow,
     sfxMeta,
+    sfx,
     busy,
     setBusy,
     refreshPlayers,
@@ -381,7 +406,7 @@ function useGameData(showToast, { enableSfx = false } = {}) {
   };
 }
 
-function TvView({ players, questions, gameState, soundReady, enableSoundNow }) {
+function TvView({ players, questions, gameState, soundReady, enableSoundNow, sfxPlayer }) {
   const registrationLink = useMemo(() => {
     const base = PUBLIC_JOIN_URL || window.location.origin;
     const url = new URL('/register', base);
@@ -415,6 +440,7 @@ function TvView({ players, questions, gameState, soundReady, enableSoundNow }) {
           selectCard={async () => {}}
           interactive={false}
           tvSound={true}
+          sfxPlayer={sfxPlayer}
         />
       </>
     );
@@ -1046,7 +1072,7 @@ function AdminView({
             <p>Upload WAV files and test playback.</p>
           </div>
         </div>
-        {['buzzer', 'tick', 'correct', 'wrong'].map((name) => (
+        {['buzzer', 'tick', 'countdown', 'correct', 'wrong'].map((name) => (
           <div key={name} className="row" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
             <strong style={{ width: 90, textTransform: 'capitalize' }}>{name}</strong>
             <input
@@ -1615,6 +1641,7 @@ function BoardView({
   pickerPlayerId = null,
   interactive = true,
   tvSound = false,
+  sfxPlayer = null,
 }) {
   const money = [200, 400, 600, 800, 1000];
   const [naOpen, setNaOpen] = useState(false);
@@ -1697,7 +1724,6 @@ function BoardView({
 
   // TV-only ticking during countdown
   const lastTickRef = useRef(null);
-  const sfx = useSfx();
   useEffect(() => {
     if (!tvSound) return;
     if (!gameState?.last_buzz_time) return;
@@ -1705,8 +1731,26 @@ function BoardView({
     // only tick once per second value
     if (lastTickRef.current === countdown) return;
     lastTickRef.current = countdown;
-    sfx.tick();
-  }, [tvSound, countdown, gameState?.last_buzz_time]);
+    sfxPlayer?.tick?.();
+  }, [tvSound, countdown, gameState?.last_buzz_time, sfxPlayer]);
+
+  // TV-only countdown music while a clue is active
+  const lastClueKeyRef = useRef(null);
+  useEffect(() => {
+    if (!tvSound) return;
+    if (!sfxPlayer) return;
+    if (!clueActive) {
+      sfxPlayer.stopCountdown?.();
+      lastClueKeyRef.current = null;
+      return;
+    }
+    // start/restart when clue changes
+    if (lastClueKeyRef.current !== clueKey) {
+      sfxPlayer.stopCountdown?.();
+      sfxPlayer.startCountdown?.();
+      lastClueKeyRef.current = clueKey;
+    }
+  }, [tvSound, clueActive, clueKey, sfxPlayer]);
 
   const clueActive = !!gameState?.current_question_id || !!gameState?.current_is_placeholder;
   const clueKey = `${gameState?.current_question_id || ''}|${gameState?.current_is_placeholder || 0}|${
@@ -1956,6 +2000,7 @@ function App() {
                 gameState={game.gameState}
                 soundReady={game.soundReady}
                 enableSoundNow={game.enableSoundNow}
+                sfxPlayer={game.sfx}
               />
             }
           />
@@ -1968,6 +2013,7 @@ function App() {
                 gameState={game.gameState}
                 soundReady={game.soundReady}
                 enableSoundNow={game.enableSoundNow}
+                sfxPlayer={game.sfx}
               />
             }
           />
