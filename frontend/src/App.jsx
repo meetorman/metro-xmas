@@ -2122,6 +2122,10 @@ function BoardView({
   const [now, setNow] = useState(Date.now());
   const [showClue, setShowClue] = useState(true);
   const [notice, setNotice] = useState('');
+  const [showAnswerReveal, setShowAnswerReveal] = useState(false);
+  const [revealAnswerText, setRevealAnswerText] = useState('');
+  const revealTimeoutRef = useRef(null);
+  const lastAnswerRef = useRef(null); // Store answer before clue is cleared
   const tts = useTTS();
 
   const selected = useMemo(
@@ -2208,8 +2212,33 @@ function BoardView({
     return remaining;
   }, [now, clueKey]);
 
+  // Store answer when clue is active (before it gets cleared)
   useEffect(() => {
-    if (!clueActive) return;
+    if (clueActive) {
+      const answer = currentQuestion?.answer || gameState?.current_answer_text || '';
+      if (answer && answer !== 'N/A' && answer.trim()) {
+        lastAnswerRef.current = answer;
+      }
+    }
+  }, [clueKey, clueActive, currentQuestion, gameState?.current_answer_text]);
+
+  useEffect(() => {
+    if (!clueActive) {
+      // When clue becomes inactive, show answer reveal if we have a stored answer
+      const answer = lastAnswerRef.current;
+      if (answer && answer.trim()) {
+        setRevealAnswerText(answer);
+        setShowAnswerReveal(true);
+        // Auto-hide after 5 seconds
+        if (revealTimeoutRef.current) clearTimeout(revealTimeoutRef.current);
+        revealTimeoutRef.current = setTimeout(() => {
+          setShowAnswerReveal(false);
+          setRevealAnswerText('');
+          lastAnswerRef.current = null;
+        }, 5000);
+      }
+      return;
+    }
     // When a new clue is selected, mark start time and reset buzz-play tracking.
     clueStartMsRef.current = Date.now();
     buzzPlayedForClueRef.current = null;
@@ -2217,6 +2246,14 @@ function BoardView({
       clearTimeout(buzzTimeoutRef.current);
       buzzTimeoutRef.current = null;
     }
+    // Hide answer reveal when new clue appears
+    if (revealTimeoutRef.current) {
+      clearTimeout(revealTimeoutRef.current);
+      revealTimeoutRef.current = null;
+    }
+    setShowAnswerReveal(false);
+    setRevealAnswerText('');
+    lastAnswerRef.current = null;
   }, [clueKey, clueActive]);
 
   // Auto-read question when a new clue appears (TV only)
@@ -2482,6 +2519,16 @@ function BoardView({
                 </Link>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Answer Reveal Overlay */}
+      {showAnswerReveal && revealAnswerText && (
+        <div className="answer-reveal-overlay">
+          <div className="answer-reveal-card">
+            <div className="answer-reveal-label">Correct Answer:</div>
+            <div className="answer-reveal-text">{revealAnswerText}</div>
           </div>
         </div>
       )}
