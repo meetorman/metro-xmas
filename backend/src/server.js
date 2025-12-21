@@ -19,7 +19,8 @@ function listBuzzQueue() {
   return db
     .prepare(
       `SELECT b.id, b.player_id AS playerId, b.buzz_time AS buzzTime,
-              p.name AS playerName, p.slug AS playerSlug, p.photo_url AS photoUrl
+              p.name AS playerName, p.slug AS playerSlug,
+              CASE WHEN p.photo_url IS NULL OR p.photo_url = '' THEN 0 ELSE 1 END AS hasPhoto
        FROM buzz_queue b
        JOIN players p ON p.id = b.player_id
        ORDER BY b.buzz_time ASC`
@@ -65,7 +66,9 @@ function dequeueNextBuzz() {
 function listPlayers() {
   return db
     .prepare(
-      `SELECT id, name, slug, score, photo_url AS photoUrl, created_at AS createdAt
+      `SELECT id, name, slug, score,
+              CASE WHEN photo_url IS NULL OR photo_url = '' THEN 0 ELSE 1 END AS hasPhoto,
+              created_at AS createdAt
        FROM players ORDER BY created_at DESC`
     )
     .all();
@@ -288,6 +291,35 @@ app.get('/api/players/:slug', (req, res) => {
     return res.status(404).json({ error: 'Player not found' });
   }
   res.json(player);
+});
+
+// Serve player photo as binary to avoid huge JSON payloads in /api/players.
+app.get('/api/players/:id/photo', (req, res) => {
+  const { id } = req.params;
+  const row = db.prepare('SELECT photo_url FROM players WHERE id = ?').get(id);
+  if (!row || !row.photo_url) return res.status(404).end();
+
+  const s = String(row.photo_url);
+  const m = s.match(/^data:([^;]+);base64,(.+)$/);
+  if (m) {
+    const mime = m[1] || 'image/jpeg';
+    const b64 = m[2];
+    try {
+      const buf = Buffer.from(b64, 'base64');
+      res.setHeader('Content-Type', mime);
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      return res.send(buf);
+    } catch {
+      return res.status(400).end();
+    }
+  }
+
+  // If stored as a plain URL, redirect.
+  if (s.startsWith('http://') || s.startsWith('https://')) {
+    return res.redirect(302, s);
+  }
+
+  return res.status(404).end();
 });
 
 app.patch('/api/players/:slug', (req, res) => {

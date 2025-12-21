@@ -179,6 +179,38 @@ async function fileToDataUrl(file) {
   });
 }
 
+async function downscaleImageFileToDataUrl(file, { maxSize = 360, quality = 0.72 } = {}) {
+  const dataUrl = await fileToDataUrl(file);
+  if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) return dataUrl;
+  return await new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth || img.width;
+      const h = img.naturalHeight || img.height;
+      const scale = Math.min(1, maxSize / Math.max(w, h));
+      const cw = Math.max(1, Math.round(w * scale));
+      const ch = Math.max(1, Math.round(h * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = cw;
+      canvas.height = ch;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, cw, ch);
+      // Use JPEG for much smaller payloads.
+      const out = canvas.toDataURL('image/jpeg', quality);
+      resolve(out);
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+function playerPhotoSrc(p) {
+  if (!p) return null;
+  if (p.photoUrl && typeof p.photoUrl === 'string') return p.photoUrl;
+  if (p.hasPhoto) return `${API_BASE}/players/${p.id}/photo`;
+  return null;
+}
+
 function useToast() {
   const [toast, setToast] = useState(null);
   function showToast(message, type = 'info') {
@@ -522,8 +554,8 @@ function TvView({ players, questions, gameState, soundReady, enableSoundNow, sfx
             {players.map((p) => (
               <li key={p.id}>
                 <div className="person">
-                  {p.photoUrl ? (
-                    <img className="avatar" src={p.photoUrl} alt={p.name} />
+                  {playerPhotoSrc(p) ? (
+                    <img className="avatar" src={playerPhotoSrc(p)} alt={p.name} />
                   ) : (
                     <div className="avatar fallback">
                       {p.name.slice(0, 2).toUpperCase()}
@@ -562,7 +594,7 @@ function PlayerPortal({ refreshPlayers, showToast }) {
     try {
       let photo = playerForm.photoUrl.trim() || null;
       if (photoFile) {
-        photo = await fileToDataUrl(photoFile);
+        photo = await downscaleImageFileToDataUrl(photoFile);
       }
 
       const { data } = await axios.post(`${API_BASE}/players`, {
@@ -1007,8 +1039,8 @@ function AdminView({
           </div>
           <div className="attention-row">
             <div className="person">
-              {buzzedPlayer?.photoUrl ? (
-                <img className="avatar big" src={buzzedPlayer.photoUrl} alt={buzzedPlayer.name} />
+              {playerPhotoSrc(buzzedPlayer) ? (
+                <img className="avatar big" src={playerPhotoSrc(buzzedPlayer)} alt={buzzedPlayer.name} />
               ) : (
                 <div className="avatar fallback big">
                   {(buzzedPlayer?.name || '??').slice(0, 2).toUpperCase()}
@@ -1059,8 +1091,8 @@ function AdminView({
             buzzQueue.map((b, idx) => (
               <li key={b.id}>
                 <div className="person">
-                  {b.photoUrl ? (
-                    <img className="avatar" src={b.photoUrl} alt={b.playerName} />
+                  {b.hasPhoto ? (
+                    <img className="avatar" src={`${API_BASE}/players/${b.playerId}/photo`} alt={b.playerName} />
                   ) : (
                     <div className="avatar fallback">
                       {(b.playerName || '??').slice(0, 2).toUpperCase()}
@@ -1152,8 +1184,8 @@ function AdminView({
             .map((p) => (
               <li key={p.id}>
                 <div className="person">
-                  {p.photoUrl ? (
-                    <img className="avatar" src={p.photoUrl} alt={p.name} />
+                  {playerPhotoSrc(p) ? (
+                    <img className="avatar" src={playerPhotoSrc(p)} alt={p.name} />
                   ) : (
                     <div className="avatar fallback">
                       {p.name.slice(0, 2).toUpperCase()}
@@ -1902,8 +1934,8 @@ function BoardView({
             <div className="buzz-strip">
               {buzzedPlayer ? (
                 <div className="person">
-                  {buzzedPlayer.photoUrl ? (
-                    <img className="avatar big" src={buzzedPlayer.photoUrl} alt={buzzedPlayer.name} />
+                  {playerPhotoSrc(buzzedPlayer) ? (
+                    <img className="avatar big" src={playerPhotoSrc(buzzedPlayer)} alt={buzzedPlayer.name} />
                   ) : (
                     <div className="avatar fallback big">
                       {buzzedPlayer.name.slice(0, 2).toUpperCase()}
@@ -1979,8 +2011,8 @@ function PlayersPage({ players }) {
         {sorted.map((p) => (
           <li key={p.id} className="player-row">
             <Link className="person" to={`/${p.slug}`}>
-              {p.photoUrl ? (
-                <img className="avatar" src={p.photoUrl} alt={p.name} />
+              {playerPhotoSrc(p) ? (
+                <img className="avatar" src={playerPhotoSrc(p)} alt={p.name} />
               ) : (
                 <div className="avatar fallback">{p.name.slice(0, 2).toUpperCase()}</div>
               )}
