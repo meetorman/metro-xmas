@@ -1722,6 +1722,11 @@ function BoardView({
     return remaining;
   }, [gameState?.last_buzz_time, now]);
 
+  const clueActive = !!gameState?.current_question_id || !!gameState?.current_is_placeholder;
+  const clueKey = `${gameState?.current_question_id || ''}|${gameState?.current_is_placeholder || 0}|${
+    gameState?.current_category || ''
+  }|${gameState?.current_points || ''}`;
+
   // TV-only ticking during countdown
   const lastTickRef = useRef(null);
   useEffect(() => {
@@ -1751,11 +1756,6 @@ function BoardView({
       lastClueKeyRef.current = clueKey;
     }
   }, [tvSound, clueActive, clueKey, sfxPlayer]);
-
-  const clueActive = !!gameState?.current_question_id || !!gameState?.current_is_placeholder;
-  const clueKey = `${gameState?.current_question_id || ''}|${gameState?.current_is_placeholder || 0}|${
-    gameState?.current_category || ''
-  }|${gameState?.current_points || ''}`;
 
   useEffect(() => {
     if (clueActive) setShowClue(true);
