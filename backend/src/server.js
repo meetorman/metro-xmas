@@ -584,6 +584,41 @@ app.get('/api/sfx/:name', (req, res) => {
   res.send(row.data);
 });
 
+// TTS endpoint using Google Translate TTS (free, better quality than Web Speech API)
+app.post('/api/tts/speak', async (req, res) => {
+  const { text } = req.body || {};
+  if (!text || typeof text !== 'string' || !text.trim()) {
+    return res.status(400).json({ error: 'Text is required' });
+  }
+
+  try {
+    // Google Translate TTS API (free, no auth required)
+    // Provides much better quality than browser Web Speech API
+    const encodedText = encodeURIComponent(text.trim().slice(0, 200)); // Limit length
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=en&client=tw-ob`;
+    
+    const fetch = require('node-fetch');
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Referer': 'https://translate.google.com/'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`TTS service returned ${response.status}`);
+    }
+    
+    const audioBuffer = await response.buffer();
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(audioBuffer);
+  } catch (err) {
+    console.error('TTS error:', err);
+    res.status(500).json({ error: 'Failed to generate speech' });
+  }
+});
+
 app.get('/api/admin/sfx', (req, res) => {
   res.json(listSfxMeta());
 });

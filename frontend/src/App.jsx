@@ -22,9 +22,10 @@ const SOCKET_URL =
 function useTTS() {
   const synthRef = useRef(null);
   const voicesRef = useRef([]);
-  const [isSupported, setIsSupported] = useState(false);
+  const audioRef = useRef(null);
+  const [isSupported, setIsSupported] = useState(true); // Always supported with backend TTS
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [voicesLoaded, setVoicesLoaded] = useState(false);
+  const [voicesLoaded, setVoicesLoaded] = useState(true); // Backend TTS doesn't need voice loading
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -100,44 +101,69 @@ function useTTS() {
     return englishVoices[0] || voices[0];
   }
 
-  function speak(text, options = {}) {
-    if (!isSupported || !synthRef.current) return;
+  async function speak(text, options = {}) {
+    if (!isSupported || !text || !text.trim()) return;
     
-    // Cancel any ongoing speech
-    synthRef.current.cancel();
+    // Stop any current playback
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
     
-    const utterance = new SpeechSynthesisUtterance(text);
-    
-    // Better default parameters for more natural speech
-    utterance.rate = options.rate || 0.95;  // Slightly slower for clarity
-    utterance.pitch = options.pitch || 1.0;
-    utterance.volume = options.volume || 1.0;
-    
-    // Get the best available voice
-    const voices = synthRef.current.getVoices();
-    if (voices.length === 0 && voicesRef.current.length > 0) {
-      // Use cached voices if current list is empty
-      const bestVoice = findBestVoice(voicesRef.current);
-      if (bestVoice) {
-        utterance.voice = bestVoice;
+    try {
+      // Use backend TTS for better quality
+      const response = await fetch(`${API_BASE}/tts/speak`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text.trim() }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('TTS request failed');
       }
-    } else {
-      const bestVoice = findBestVoice(voices);
-      if (bestVoice) {
-        utterance.voice = bestVoice;
-        // Update cache
-        voicesRef.current = voices;
+      
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+      audio.volume = options.volume || 1.0;
+      
+      audio.onplay = () => setIsSpeaking(true);
+      audio.onended = () => {
+        setIsSpeaking(false);
+        URL.revokeObjectURL(audioUrl);
+      };
+      audio.onerror = () => {
+        setIsSpeaking(false);
+        URL.revokeObjectURL(audioUrl);
+      };
+      
+      await audio.play();
+    } catch (err) {
+      console.error('TTS error:', err);
+      setIsSpeaking(false);
+      // Fallback to Web Speech API if backend fails
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        if (!synthRef.current) {
+          synthRef.current = window.speechSynthesis;
+        }
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = options.rate || 0.95;
+        utterance.volume = options.volume || 1.0;
+        utterance.onstart = () => setIsSpeaking(true);
+        utterance.onend = () => setIsSpeaking(false);
+        utterance.onerror = () => setIsSpeaking(false);
+        synthRef.current.speak(utterance);
       }
     }
-
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-
-    synthRef.current.speak(utterance);
   }
 
   function stop() {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setIsSpeaking(false);
+    }
     if (synthRef.current) {
       synthRef.current.cancel();
       setIsSpeaking(false);
@@ -145,9 +171,7 @@ function useTTS() {
   }
 
   function getCurrentVoiceName() {
-    if (!voicesLoaded || voicesRef.current.length === 0) return null;
-    const best = findBestVoice(voicesRef.current);
-    return best ? best.name : null;
+    return 'Google TTS (High Quality)';
   }
 
   return {
@@ -1391,27 +1415,7 @@ function AdminView({
             <div className="state-block" style={{ marginBottom: 12 }}>
               <p className="muted">Clue</p>
               <p style={{ marginTop: 6, fontWeight: 800 }}>{clueText || '—'}</p>
-              {adminTts.isSupported && clueText && clueText !== '—' ? (
-                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <button
-                    onClick={() => {
-                      if (adminTts.isSpeaking) {
-                        adminTts.stop();
-                      } else {
-                        adminTts.speak(clueText, { rate: 0.85 });
-                      }
-                    }}
-                    style={{ padding: '6px 12px', fontSize: '0.85rem' }}
-                  >
-                    {adminTts.isSpeaking ? '⏸ Stop' : '🔊 Read Question'}
-                  </button>
-                  {adminTts.voicesLoaded && adminTts.getCurrentVoiceName() && (
-                    <span className="muted" style={{ fontSize: '0.7rem' }}>
-                      Voice: {adminTts.getCurrentVoiceName()}
-                    </span>
-                  )}
-                </div>
-              ) : null}
+              {/* TTS auto-reads on TV, manual button removed for cleaner UI */}
               <p className="muted" style={{ marginTop: 10 }}>
                 Correct answer: <strong>{answerText || '—'}</strong>
               </p>
@@ -2290,7 +2294,7 @@ function BoardView({
     // Don't clear lastAnswerRef here - we need it for the reveal
   }, [clueKey, clueActive]);
 
-  // Auto-read question when a new clue appears (TV only)
+  // Auto-read question when a new clue appears (TV only) - using high-quality backend TTS
   const lastReadClueKeyRef = useRef(null);
   useEffect(() => {
     if (!tvSound) return; // Only auto-read on TV routes
@@ -2304,27 +2308,12 @@ function BoardView({
     if (lastReadClueKeyRef.current === clueKey) return;
     lastReadClueKeyRef.current = clueKey;
     
-    // Wait for voices to load, then read
-    const readQuestion = () => {
-      if (tts.voicesLoaded) {
-        tts.speak(clueText, { rate: 0.85 });
-      } else {
-        // If voices not loaded yet, wait a bit and try again (max 3 seconds)
-        const attempts = readQuestion.__attempts || 0;
-        if (attempts < 15) {
-          readQuestion.__attempts = attempts + 1;
-          setTimeout(readQuestion, 200);
-        }
-      }
-    };
+    // Auto-read immediately with backend TTS (no voice loading needed)
+    const timer = setTimeout(() => {
+      tts.speak(clueText, { rate: 0.85 });
+    }, 300); // Small delay to let overlay appear
     
-    // Small delay to let the overlay appear first
-    const timer = setTimeout(readQuestion, 500);
-    
-    return () => {
-      clearTimeout(timer);
-      if (readQuestion.__attempts) delete readQuestion.__attempts;
-    };
+    return () => clearTimeout(timer);
   }, [clueKey, clueActive, tvSound, tts, currentQuestion, gameState?.current_clue_text]);
 
   // TV-only ticking during countdown
