@@ -280,7 +280,6 @@ function useGameData(showToast, { enableSfx = false } = {}) {
     socket.on('events:new', (evt) => {
       if (!evt?.type) return;
       if (!enableSfx) return;
-      if (evt.type === 'buzz' || evt.type === 'buzz_advance') sfx.buzz();
       if (evt.type === 'marked_correct') sfx.correct();
       if (evt.type === 'marked_wrong') sfx.wrong();
     });
@@ -1800,12 +1799,32 @@ function BoardView({
     gameState?.current_category || ''
   }|${gameState?.current_points || ''}`;
 
+  // Jeopardy-style: always play at least 5 seconds of thinking music before buzz sound.
+  const CLUE_MUSIC_MIN_MS = 5000;
+  const clueStartMsRef = useRef(null);
+  const buzzTimeoutRef = useRef(null);
+  const buzzPlayedForClueRef = useRef(null);
+
+  useEffect(() => {
+    if (!clueActive) return;
+    // When a new clue is selected, mark start time and reset buzz-play tracking.
+    clueStartMsRef.current = Date.now();
+    buzzPlayedForClueRef.current = null;
+    if (buzzTimeoutRef.current) {
+      clearTimeout(buzzTimeoutRef.current);
+      buzzTimeoutRef.current = null;
+    }
+  }, [clueKey, clueActive]);
+
   // TV-only ticking during countdown
   const lastTickRef = useRef(null);
   useEffect(() => {
     if (!tvSound) return;
     if (!gameState?.last_buzz_time) return;
     if (countdown <= 0) return;
+    // Don't start tick until the minimum thinking-music window has passed.
+    const startMs = clueStartMsRef.current || Date.now();
+    if (Date.now() - startMs < CLUE_MUSIC_MIN_MS) return;
     // only tick once per second value
     if (lastTickRef.current === countdown) return;
     lastTickRef.current = countdown;
@@ -1820,7 +1839,7 @@ function BoardView({
     const buzzed = !!gameState?.last_buzz_time || !!gameState?.buzzer_locked;
 
     // Music should play from tile selection until first buzz.
-    if (!clueActive || buzzed) {
+    if (!clueActive) {
       sfxPlayer.stopCountdown?.();
       lastClueKeyRef.current = null;
       return;
@@ -1830,6 +1849,21 @@ function BoardView({
       sfxPlayer.stopCountdown?.();
       sfxPlayer.startCountdown?.();
       lastClueKeyRef.current = clueKey;
+    }
+
+    // If someone buzzed before 5 seconds, delay the buzzer sound (and stopping music)
+    // so we always hear at least 5 seconds of the theme.
+    if (buzzed && buzzPlayedForClueRef.current !== clueKey) {
+      const startMs = clueStartMsRef.current || Date.now();
+      const remaining = Math.max(0, CLUE_MUSIC_MIN_MS - (Date.now() - startMs));
+      if (buzzTimeoutRef.current) clearTimeout(buzzTimeoutRef.current);
+      buzzTimeoutRef.current = setTimeout(() => {
+        // stop music exactly when buzzer plays
+        sfxPlayer.stopCountdown?.();
+        sfxPlayer.buzz?.();
+        buzzPlayedForClueRef.current = clueKey;
+        buzzTimeoutRef.current = null;
+      }, remaining);
     }
   }, [tvSound, clueActive, clueKey, sfxPlayer, gameState?.last_buzz_time, gameState?.buzzer_locked]);
 
