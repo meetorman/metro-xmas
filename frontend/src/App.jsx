@@ -759,8 +759,8 @@ function TvView({ players, questions, gameState, soundReady, enableSoundNow, sfx
 
   // When game is ended, show winners
   if (gameState?.status === 'ended') {
-    return (
-      <>
+  return (
+    <>
         {!soundReady && (
           <div className="sound-gate">
             <div className="sound-gate-card">
@@ -770,7 +770,7 @@ function TvView({ players, questions, gameState, soundReady, enableSoundNow, sfx
               <button className="sound-gate-btn" onClick={enableSoundNow}>
                 Enable Sound
               </button>
-            </div>
+      </div>
           </div>
         )}
         <WinnersView players={players} sfxPlayer={sfxPlayer} soundReady={soundReady} />
@@ -792,7 +792,7 @@ function TvView({ players, questions, gameState, soundReady, enableSoundNow, sfx
               <p className="muted">(Browser autoplay rule — once enabled, you're set.)</p>
               <button className="sound-gate-btn" onClick={enableSoundNow}>
                 Enable Sound
-              </button>
+        </button>
             </div>
           </div>
         )}
@@ -838,7 +838,7 @@ function TvView({ players, questions, gameState, soundReady, enableSoundNow, sfx
               {new Date(gameState.last_buzz_time).toLocaleTimeString()}
             </p>
           )}
-        </div>
+      </div>
         <div className="list-card">
           <h3>Registered Players</h3>
           <ul className="list">
@@ -2218,6 +2218,43 @@ function BoardView({
       buzzTimeoutRef.current = null;
     }
   }, [clueKey, clueActive]);
+
+  // Auto-read question when a new clue appears (TV only)
+  const lastReadClueKeyRef = useRef(null);
+  useEffect(() => {
+    if (!tvSound) return; // Only auto-read on TV routes
+    if (!clueActive) return;
+    if (!tts.isSupported) return;
+    
+    const clueText = currentQuestion?.questionText || gameState?.current_clue_text || '';
+    if (!clueText || clueText === 'N/A') return;
+    
+    // Only read if this is a new clue (different key)
+    if (lastReadClueKeyRef.current === clueKey) return;
+    lastReadClueKeyRef.current = clueKey;
+    
+    // Wait for voices to load, then read
+    const readQuestion = () => {
+      if (tts.voicesLoaded) {
+        tts.speak(clueText, { rate: 0.85 });
+      } else {
+        // If voices not loaded yet, wait a bit and try again (max 3 seconds)
+        const attempts = readQuestion.__attempts || 0;
+        if (attempts < 15) {
+          readQuestion.__attempts = attempts + 1;
+          setTimeout(readQuestion, 200);
+        }
+      }
+    };
+    
+    // Small delay to let the overlay appear first
+    const timer = setTimeout(readQuestion, 500);
+    
+    return () => {
+      clearTimeout(timer);
+      if (readQuestion.__attempts) delete readQuestion.__attempts;
+    };
+  }, [clueKey, clueActive, tvSound, tts, currentQuestion, gameState?.current_clue_text]);
 
   // TV-only ticking during countdown
   const lastTickRef = useRef(null);
