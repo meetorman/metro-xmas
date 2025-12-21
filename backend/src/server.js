@@ -977,6 +977,10 @@ app.post('/api/admin/resolve-current', (req, res) => {
       last_buzz_time: null,
     });
   } else {
+    // Jeopardy rule: incorrect response loses the clue value.
+    if (delta) {
+      db.prepare('UPDATE players SET score = score - ? WHERE id = ?').run(delta, playerId);
+    }
     const next = dequeueNextBuzz();
     if (next) {
       const nextNow = new Date().toISOString();
@@ -1027,7 +1031,7 @@ app.post('/api/admin/resolve-current', (req, res) => {
     `${correct ? 'Correct' : 'Wrong'}: player ${playerId} (${delta >= 0 ? '+' : ''}${delta} pts)`,
     {
       playerId,
-      delta: correct ? delta : 0,
+      delta: correct ? delta : -delta,
       questionId: state.current_question_id,
       category: state.current_category,
       points: state.current_points,
