@@ -1782,7 +1782,7 @@ function BoardView({
   tvSound = false,
   sfxPlayer = null,
 }) {
-  const ANSWER_SECONDS = 10;
+  const ANSWER_SECONDS_TOTAL = 10;
   const money = [200, 400, 600, 800, 1000];
   const [naOpen, setNaOpen] = useState(false);
   const [naInfo, setNaInfo] = useState({ category: '', points: 0 });
@@ -1854,19 +1854,14 @@ function BoardView({
   }, [players, gameState?.turn_player_id]);
 
   const countdown = useMemo(() => {
-    // Start 10s when someone buzzes; otherwise show 10.
-    if (!gameState?.last_buzz_time) return ANSWER_SECONDS;
-    let started = new Date(gameState.last_buzz_time).getTime();
-    // If we intentionally delayed the buzz sound to guarantee 5s of music, align the timer
-    // start to that same effective moment so players don't lose time.
+    // Jeopardy-style per your rule:
+    // total time window = 10s from tile selection; buzzing claims whatever is left.
     const clueStart = clueStartMsRef.current;
-    if (clueStart && started - clueStart < CLUE_MUSIC_MIN_MS) {
-      started = clueStart + CLUE_MUSIC_MIN_MS;
-    }
-    const elapsed = (now - started) / 1000;
-    const remaining = Math.max(0, Math.ceil(ANSWER_SECONDS - elapsed));
+    if (!clueStart) return ANSWER_SECONDS_TOTAL;
+    const elapsed = (now - clueStart) / 1000;
+    const remaining = Math.max(0, Math.ceil(ANSWER_SECONDS_TOTAL - elapsed));
     return remaining;
-  }, [gameState?.last_buzz_time, now]);
+  }, [now, clueKey]);
 
   const clueActive = !!gameState?.current_question_id || !!gameState?.current_is_placeholder;
   const clueKey = `${gameState?.current_question_id || ''}|${gameState?.current_is_placeholder || 0}|${
