@@ -1018,7 +1018,7 @@ function AdminView({
               <option value="">Choose player</option>
               {players.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name}
+                  {p.name} (/{p.slug}) · {String(p.id).slice(0, 6)}
                 </option>
               ))}
             </select>
@@ -2016,7 +2016,10 @@ function PlayersPage({ players }) {
               ) : (
                 <div className="avatar fallback">{p.name.slice(0, 2).toUpperCase()}</div>
               )}
-              <span>{p.name}</span>
+              <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
+                <strong>{p.name}</strong>
+                <span className="muted">/{p.slug}</span>
+              </span>
             </Link>
             <Link className="muted" to={`/${p.slug}/buzzer`}>
               Buzzer
