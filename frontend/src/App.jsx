@@ -67,6 +67,7 @@ function useSfx() {
         timeout: new Audio(srcFor('timeout')),
         correct: new Audio(srcFor('correct')),
         wrong: new Audio(srcFor('wrong')),
+        winner: new Audio(srcFor('winner')),
       };
       // keep SFX snappy + robust
       Object.entries(audioRef.current).forEach(([key, a]) => {
@@ -87,6 +88,8 @@ function useSfx() {
       audioRef.current.wrong.volume = 1.0;
       audioRef.current.buzzer.volume = 1.0;
       audioRef.current.timeout.volume = 1.0;
+      audioRef.current.winner.volume = 0.6;
+      audioRef.current.winner.loop = true;
     }
     return audioRef.current;
   }
@@ -99,7 +102,7 @@ function useSfx() {
     metaRef.current = m;
     // refresh sources so next play uses updated audio
     if (audioRef.current) {
-      for (const key of ['buzzer', 'tick', 'countdown', 'timeout', 'correct', 'wrong']) {
+      for (const key of ['buzzer', 'tick', 'countdown', 'timeout', 'correct', 'wrong', 'winner']) {
         const el = audioRef.current[key];
         if (!el) continue;
         el.__fallbackApplied = false;
@@ -180,6 +183,22 @@ function useSfx() {
     playOnce(500);
   }
 
+  function startWinner() {
+    if (!unlocked) return;
+    const a = ensureAudio();
+    try {
+      a.winner.play().catch(() => {});
+    } catch {}
+  }
+
+  function stopWinner() {
+    const a = ensureAudio();
+    try {
+      a.winner.pause();
+      a.winner.currentTime = 0;
+    } catch {}
+  }
+
   return {
     unlock,
     isUnlocked: unlocked,
@@ -191,6 +210,8 @@ function useSfx() {
     timeUp,
     correct: () => play('correct'),
     wrong: () => play('wrong'),
+    startWinner,
+    stopWinner,
   };
 }
 
@@ -502,6 +523,91 @@ function useGameData(showToast, { enableSfx = false } = {}) {
   };
 }
 
+function WinnersView({ players, sfxPlayer, soundReady }) {
+  const winners = useMemo(() => {
+    const sorted = [...players].sort((a, b) => (b.score || 0) - (a.score || 0));
+    return sorted;
+  }, [players]);
+
+  const topScore = winners[0]?.score || 0;
+  const champions = winners.filter((p) => (p.score || 0) === topScore && topScore > 0);
+
+  // Play winner theme when component mounts (if sound is ready)
+  useEffect(() => {
+    if (soundReady && sfxPlayer) {
+      sfxPlayer.startWinner?.();
+      return () => {
+        sfxPlayer.stopWinner?.();
+      };
+    }
+  }, [soundReady, sfxPlayer]);
+
+  if (winners.length === 0) {
+    return (
+      <div className="winners-view">
+        <h1>Game Over</h1>
+        <p>No players registered.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="winners-view">
+      <div className="winners-header">
+        <h1 className="winners-title">🎉 Game Over! 🎉</h1>
+        {champions.length > 0 && (
+          <div className="champions">
+            <h2 className="champion-title">
+              {champions.length === 1 ? 'Champion' : 'Champions'}
+            </h2>
+            <div className="champions-list">
+              {champions.map((p) => (
+                <div key={p.id} className="champion-card">
+                  {playerPhotoSrc(p) ? (
+                    <img className="champion-avatar" src={playerPhotoSrc(p)} alt={p.name} />
+                  ) : (
+                    <div className="champion-avatar fallback">
+                      {p.name.slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="champion-info">
+                    <div className="champion-name">{p.name}</div>
+                    <div className="champion-score">${topScore.toLocaleString()}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="winners-leaderboard">
+        <h2>Final Scores</h2>
+        <div className="leaderboard-list">
+          {winners.map((p, idx) => {
+            const isChampion = (p.score || 0) === topScore && topScore > 0;
+            return (
+              <div key={p.id} className={`leaderboard-item ${isChampion ? 'champion' : ''}`}>
+                <div className="leaderboard-rank">#{idx + 1}</div>
+                <div className="leaderboard-player">
+                  {playerPhotoSrc(p) ? (
+                    <img className="leaderboard-avatar" src={playerPhotoSrc(p)} alt={p.name} />
+                  ) : (
+                    <div className="leaderboard-avatar fallback">
+                      {p.name.slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <span className="leaderboard-name">{p.name}</span>
+                </div>
+                <div className="leaderboard-score">${(p.score || 0).toLocaleString()}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TvView({ players, questions, gameState, soundReady, enableSoundNow, sfxPlayer }) {
   const registrationLink = useMemo(() => {
     const base = PUBLIC_JOIN_URL || window.location.origin;
@@ -509,6 +615,27 @@ function TvView({ players, questions, gameState, soundReady, enableSoundNow, sfx
     url.searchParams.set('mode', 'player');
     return url.toString();
   }, []);
+
+  // When game is ended, show winners
+  if (gameState?.status === 'ended') {
+    return (
+      <>
+        {!soundReady && (
+          <div className="sound-gate">
+            <div className="sound-gate-card">
+              <h2>Tap to enable sound</h2>
+              <p>This TV needs one click/tap before it can play the winner theme.</p>
+              <p className="muted">(Browser autoplay rule — once enabled, you're set.)</p>
+              <button className="sound-gate-btn" onClick={enableSoundNow}>
+                Enable Sound
+              </button>
+            </div>
+          </div>
+        )}
+        <WinnersView players={players} sfxPlayer={sfxPlayer} soundReady={soundReady} />
+      </>
+    );
+  }
 
   // When game is active, show the Jeopardy board on the main TV page.
   if (gameState?.status === 'active') {
@@ -521,7 +648,7 @@ function TvView({ players, questions, gameState, soundReady, enableSoundNow, sfx
               <p>
                 This TV needs one click/tap before it can play buzzer + countdown audio.
               </p>
-              <p className="muted">(Browser autoplay rule — once enabled, you’re set.)</p>
+              <p className="muted">(Browser autoplay rule — once enabled, you're set.)</p>
               <button className="sound-gate-btn" onClick={enableSoundNow}>
                 Enable Sound
               </button>
@@ -1211,7 +1338,7 @@ function AdminView({
             <p>Upload WAV files and test playback.</p>
           </div>
         </div>
-        {['buzzer', 'tick', 'countdown', 'timeout', 'correct', 'wrong'].map((name) => (
+        {['buzzer', 'tick', 'countdown', 'timeout', 'correct', 'wrong', 'winner'].map((name) => (
           <div key={name} className="row" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
             <strong style={{ width: 90, textTransform: 'capitalize' }}>{name}</strong>
             <input
