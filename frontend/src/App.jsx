@@ -31,6 +31,31 @@ function useSfx() {
     return `/sfx/${name}.wav`;
   }
 
+  function fallbackSrcFor(name) {
+    if (name === 'countdown') return `/sfx/countdown.mp3`;
+    return `/sfx/${name}.wav`;
+  }
+
+  function attachFallback(el, name) {
+    if (!el) return;
+    el.__fallbackApplied = false;
+    el.addEventListener(
+      'error',
+      () => {
+        // If a custom uploaded sound fails to load, fall back to bundled assets.
+        if (el.__fallbackApplied) return;
+        el.__fallbackApplied = true;
+        el.src = fallbackSrcFor(name);
+        try {
+          el.load();
+        } catch {
+          // ignore
+        }
+      },
+      { passive: true }
+    );
+  }
+
   function ensureAudio() {
     if (!audioRef.current) {
       audioRef.current = {
@@ -40,14 +65,24 @@ function useSfx() {
         correct: new Audio(srcFor('correct')),
         wrong: new Audio(srcFor('wrong')),
       };
-      // keep short SFX snappy
-      Object.values(audioRef.current).forEach((a) => {
+      // keep SFX snappy + robust
+      Object.entries(audioRef.current).forEach(([key, a]) => {
         a.preload = 'auto';
         a.volume = 1.0;
+        attachFallback(a, key);
+        try {
+          a.load();
+        } catch {
+          // ignore
+        }
       });
       // background countdown music
       audioRef.current.countdown.loop = true;
       audioRef.current.countdown.volume = 0.35;
+      audioRef.current.tick.volume = 0.5;
+      audioRef.current.correct.volume = 1.0;
+      audioRef.current.wrong.volume = 1.0;
+      audioRef.current.buzzer.volume = 1.0;
     }
     return audioRef.current;
   }
@@ -60,11 +95,17 @@ function useSfx() {
     metaRef.current = m;
     // refresh sources so next play uses updated audio
     if (audioRef.current) {
-      audioRef.current.buzzer.src = srcFor('buzzer');
-      audioRef.current.tick.src = srcFor('tick');
-      audioRef.current.countdown.src = srcFor('countdown');
-      audioRef.current.correct.src = srcFor('correct');
-      audioRef.current.wrong.src = srcFor('wrong');
+      for (const key of ['buzzer', 'tick', 'countdown', 'correct', 'wrong']) {
+        const el = audioRef.current[key];
+        if (!el) continue;
+        el.__fallbackApplied = false;
+        el.src = srcFor(key);
+        try {
+          el.load();
+        } catch {
+          // ignore
+        }
+      }
     }
   }
 
