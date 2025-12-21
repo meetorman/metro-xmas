@@ -1853,16 +1853,6 @@ function BoardView({
     return players.find((p) => p.id === gameState.turn_player_id) || null;
   }, [players, gameState?.turn_player_id]);
 
-  const countdown = useMemo(() => {
-    // Jeopardy-style per your rule:
-    // total time window = 10s from tile selection; buzzing claims whatever is left.
-    const clueStart = clueStartMsRef.current;
-    if (!clueStart) return ANSWER_SECONDS_TOTAL;
-    const elapsed = (now - clueStart) / 1000;
-    const remaining = Math.max(0, Math.ceil(ANSWER_SECONDS_TOTAL - elapsed));
-    return remaining;
-  }, [now, clueKey]);
-
   const clueActive = !!gameState?.current_question_id || !!gameState?.current_is_placeholder;
   const clueKey = `${gameState?.current_question_id || ''}|${gameState?.current_is_placeholder || 0}|${
     gameState?.current_category || ''
@@ -1873,6 +1863,16 @@ function BoardView({
   const clueStartMsRef = useRef(null);
   const buzzTimeoutRef = useRef(null);
   const buzzPlayedForClueRef = useRef(null);
+
+  const countdown = useMemo(() => {
+    // Jeopardy-style per your rule:
+    // total time window = 10s from tile selection; buzzing claims whatever is left.
+    const clueStart = clueStartMsRef.current;
+    if (!clueStart) return ANSWER_SECONDS_TOTAL;
+    const elapsed = (now - clueStart) / 1000;
+    const remaining = Math.max(0, Math.ceil(ANSWER_SECONDS_TOTAL - elapsed));
+    return remaining;
+  }, [now, clueKey]);
 
   useEffect(() => {
     if (!clueActive) return;
