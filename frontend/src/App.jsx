@@ -2477,30 +2477,7 @@ function BoardView({
                 'N/A'}
             </div>
             
-            {(() => {
-              const clueText = currentQuestion?.questionText || gameState?.current_clue_text || '';
-              return tts.isSupported && clueText && clueText !== 'N/A' ? (
-                <div className="clue-actions" style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
-                  <button
-                    onClick={() => {
-                      if (tts.isSpeaking) {
-                        tts.stop();
-                      } else {
-                        tts.speak(clueText, { rate: 0.85 });
-                      }
-                    }}
-                    style={{ padding: '8px 16px', fontSize: '0.9rem' }}
-                  >
-                    {tts.isSpeaking ? '⏸ Stop Reading' : '🔊 Read Question'}
-                  </button>
-                  {tts.voicesLoaded && tts.getCurrentVoiceName() && (
-                    <span className="muted" style={{ fontSize: '0.75rem' }}>
-                      Voice: {tts.getCurrentVoiceName()}
-                    </span>
-                  )}
-                </div>
-              ) : null;
-            })()}
+            {/* Questions auto-read when clue appears - no button needed */}
 
             <div className="buzz-strip">
               {buzzedPlayer ? (
