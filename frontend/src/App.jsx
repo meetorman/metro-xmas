@@ -688,6 +688,17 @@ function AdminView({
     return players.find((p) => p.id === gameState.last_buzz_player_id) || null;
   }, [players, gameState?.last_buzz_player_id]);
 
+  const currentQuestion = useMemo(() => {
+    if (!gameState?.current_question_id) return null;
+    return questions.find((q) => q.id === gameState.current_question_id) || null;
+  }, [questions, gameState?.current_question_id]);
+
+  const clueActive = !!gameState?.current_question_id || !!gameState?.current_is_placeholder;
+  const clueText =
+    currentQuestion?.questionText || gameState?.current_clue_text || '';
+  const answerText =
+    currentQuestion?.answer || gameState?.current_answer_text || '';
+
   const turnPlayer = useMemo(() => {
     if (!gameState?.turn_player_id) return null;
     return players.find((p) => p.id === gameState.turn_player_id) || null;
@@ -966,8 +977,7 @@ function AdminView({
                 ).toLocaleTimeString()}`
               : '—'}
           </p>
-          {gameState?.last_buzz_player_id &&
-            (gameState?.current_question_id || gameState?.current_is_placeholder) && (
+          {gameState?.last_buzz_player_id && clueActive && (
             <div className="button-row">
               <button onClick={() => resolveCurrent(true)} disabled={busy}>
                 Mark {buzzedPlayer?.name || gameState.last_buzz_player_id} Correct
@@ -975,6 +985,9 @@ function AdminView({
               <button onClick={() => resolveCurrent(false)} disabled={busy}>
                 Mark {buzzedPlayer?.name || gameState.last_buzz_player_id} Wrong
               </button>
+              <span className="muted" style={{ marginLeft: 8 }}>
+                Answer: <strong>{answerText || '—'}</strong>
+              </span>
       </div>
           )}
         </div>
@@ -1057,6 +1070,15 @@ function AdminView({
               <p>First buzz wins. Mark their answer.</p>
             </div>
           </div>
+          {clueActive && (
+            <div className="state-block" style={{ marginBottom: 12 }}>
+              <p className="muted">Clue</p>
+              <p style={{ marginTop: 6, fontWeight: 800 }}>{clueText || '—'}</p>
+              <p className="muted" style={{ marginTop: 10 }}>
+                Correct answer: <strong>{answerText || '—'}</strong>
+              </p>
+            </div>
+          )}
           <div className="attention-row">
             <div className="person">
               {playerPhotoSrc(buzzedPlayer) ? (
@@ -1080,7 +1102,7 @@ function AdminView({
                 onClick={() => resolveCurrent(true)}
                 disabled={
                   busy ||
-                  !(gameState?.current_question_id || gameState?.current_is_placeholder)
+                  !clueActive
                 }
               >
                 Correct ({buzzedPlayer?.name || gameState.last_buzz_player_id})
@@ -1089,7 +1111,7 @@ function AdminView({
                 onClick={() => resolveCurrent(false)}
                 disabled={
                   busy ||
-                  !(gameState?.current_question_id || gameState?.current_is_placeholder)
+                  !clueActive
                 }
               >
                 Wrong ({buzzedPlayer?.name || gameState.last_buzz_player_id})
