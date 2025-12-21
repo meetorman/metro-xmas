@@ -98,6 +98,25 @@ function listEvents(limit = 100) {
     .all(lim);
 }
 
+function normalizeSfxName(name) {
+  const raw = String(name || '').trim().toLowerCase();
+  const base = raw.endsWith('.wav') ? raw.slice(0, -4) : raw;
+  if (!['buzzer', 'tick', 'correct', 'wrong'].includes(base)) return null;
+  return base;
+}
+
+function listSfxMeta() {
+  return db
+    .prepare('SELECT name, mime, updated_at AS updatedAt FROM sfx_files ORDER BY name ASC')
+    .all();
+}
+
+function getSfxFile(name) {
+  return db
+    .prepare('SELECT name, mime, data, updated_at AS updatedAt FROM sfx_files WHERE name = ?')
+    .get(name);
+}
+
 function logEvent(req, type, message, data = null) {
   const evt = {
     id: uuidv4(),
@@ -468,6 +487,63 @@ app.post('/api/admin/players/:id/score', (req, res) => {
     { playerId: id, playerName: player.name, delta: appliedDelta, score: newScore }
   );
   res.json({ playerId: id, score: newScore });
+});
+
+app.get('/api/sfx/:name', (req, res) => {
+  const name = normalizeSfxName(req.params.name);
+  if (!name) return res.status(400).json({ error: 'Invalid sfx name' });
+  const row = getSfxFile(name);
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  res.setHeader('Content-Type', row.mime || 'audio/wav');
+  res.setHeader('Cache-Control', 'no-store');
+  res.send(row.data);
+});
+
+app.get('/api/admin/sfx', (req, res) => {
+  res.json(listSfxMeta());
+});
+
+app.post('/api/admin/sfx/:name', (req, res) => {
+  const name = normalizeSfxName(req.params.name);
+  if (!name) return res.status(400).json({ error: 'Invalid sfx name' });
+  const { dataUrl } = req.body || {};
+  if (!dataUrl || typeof dataUrl !== 'string') {
+    return res.status(400).json({ error: 'dataUrl is required' });
+  }
+
+  const m = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  if (!m) return res.status(400).json({ error: 'Invalid dataUrl' });
+  const mime = m[1];
+  const b64 = m[2];
+
+  if (!mime.startsWith('audio/')) {
+    return res.status(400).json({ error: 'File must be audio/*' });
+  }
+
+  let buf;
+  try {
+    buf = Buffer.from(b64, 'base64');
+  } catch {
+    return res.status(400).json({ error: 'Invalid base64 data' });
+  }
+
+  // basic safety limit (keep under JSON limit and avoid huge DB rows)
+  if (buf.length > 2_500_000) {
+    return res.status(413).json({ error: 'File too large (max ~2.5MB)' });
+  }
+
+  const updatedAt = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO sfx_files (name, mime, data, updated_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(name) DO UPDATE SET mime=excluded.mime, data=excluded.data, updated_at=excluded.updated_at`
+  ).run(name, mime, buf, updatedAt);
+
+  const io = getIo(req);
+  if (io) io.emit('sfx:meta', listSfxMeta());
+
+  logEvent(req, 'sfx_uploaded', `Uploaded ${name}.wav`, { name, mime, bytes: buf.length });
+  res.json({ ok: true, name, updatedAt });
 });
 
 app.delete('/api/admin/players/:id', (req, res) => {
@@ -952,6 +1028,7 @@ if (require.main === module) {
     socket.emit('game:state', getGameState());
     socket.emit('events:init', listEvents(100));
     socket.emit('buzz:queue', listBuzzQueue());
+    socket.emit('sfx:meta', listSfxMeta());
   });
 
   httpServer.listen(PORT, () => {

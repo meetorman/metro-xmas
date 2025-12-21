@@ -22,14 +22,21 @@ const SOCKET_URL =
 function useSfx() {
   const [unlocked, setUnlocked] = useState(false);
   const audioRef = useRef(null);
+  const metaRef = useRef({});
+
+  function srcFor(name) {
+    const meta = metaRef.current?.[name];
+    if (meta?.updatedAt) return `/api/sfx/${name}?v=${encodeURIComponent(meta.updatedAt)}`;
+    return `/sfx/${name}.wav`;
+  }
 
   function ensureAudio() {
     if (!audioRef.current) {
       audioRef.current = {
-        buzzer: new Audio('/sfx/buzzer.wav'),
-        tick: new Audio('/sfx/tick.wav'),
-        correct: new Audio('/sfx/correct.wav'),
-        wrong: new Audio('/sfx/wrong.wav'),
+        buzzer: new Audio(srcFor('buzzer')),
+        tick: new Audio(srcFor('tick')),
+        correct: new Audio(srcFor('correct')),
+        wrong: new Audio(srcFor('wrong')),
       };
       // keep short SFX snappy
       Object.values(audioRef.current).forEach((a) => {
@@ -38,6 +45,21 @@ function useSfx() {
       });
     }
     return audioRef.current;
+  }
+
+  function setMeta(metaList) {
+    const m = {};
+    (metaList || []).forEach((row) => {
+      if (row?.name) m[row.name] = row;
+    });
+    metaRef.current = m;
+    // refresh sources so next play uses updated audio
+    if (audioRef.current) {
+      audioRef.current.buzzer.src = srcFor('buzzer');
+      audioRef.current.tick.src = srcFor('tick');
+      audioRef.current.correct.src = srcFor('correct');
+      audioRef.current.wrong.src = srcFor('wrong');
+    }
   }
 
   async function unlock() {
@@ -75,6 +97,7 @@ function useSfx() {
   return {
     unlock,
     isUnlocked: unlocked,
+    setMeta,
     buzz: () => play('buzzer'),
     tick: () => play('tick'),
     correct: () => play('correct'),
@@ -110,6 +133,7 @@ function useGameData(showToast, { enableSfx = false } = {}) {
   const sfx = useSfx();
   const lastBuzzRef = useRef({ playerId: null, time: null });
   const [soundReady, setSoundReady] = useState(false);
+  const [sfxMeta, setSfxMeta] = useState([]);
 
   async function enableSoundNow() {
     const ok = await sfx.unlock();
@@ -164,6 +188,11 @@ function useGameData(showToast, { enableSfx = false } = {}) {
       if (evt.type === 'marked_wrong') sfx.wrong();
     });
     socket.on('buzz:queue', (q) => setBuzzQueue(Array.isArray(q) ? q : []));
+    socket.on('sfx:meta', (m) => {
+      const list = Array.isArray(m) ? m : [];
+      setSfxMeta(list);
+      sfx.setMeta(list);
+    });
 
     socket.on('connect_error', (err) => {
       console.warn('socket connect_error', err?.message || err);
@@ -336,6 +365,7 @@ function useGameData(showToast, { enableSfx = false } = {}) {
     buzzQueue,
     soundReady,
     enableSoundNow,
+    sfxMeta,
     busy,
     setBusy,
     refreshPlayers,
@@ -537,6 +567,7 @@ function AdminView({
   gameState,
   events,
   buzzQueue,
+  sfxMeta,
   refreshQuestions,
   refreshState,
   setCurrentQuestion,
@@ -712,6 +743,37 @@ function AdminView({
       showToast(err.response?.data?.error || 'Could not delete player', 'error');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function uploadSfx(name, file) {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      await axios.post(`${API_BASE}/admin/sfx/${name}`, { dataUrl });
+      showToast(`Uploaded ${name}`);
+    } catch (err) {
+      console.error(err);
+      showToast(err.response?.data?.error || 'Could not upload sound', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function testSfx(name) {
+    try {
+      const meta = (sfxMeta || []).find((m) => m.name === name);
+      const url = meta?.updatedAt
+        ? `${API_BASE}/sfx/${name}?v=${encodeURIComponent(meta.updatedAt)}`
+        : `/sfx/${name}.wav`;
+      const a = new Audio(url);
+      a.volume = 1.0;
+      await a.play();
+      showToast(`Played ${name}`);
+    } catch (err) {
+      console.error(err);
+      showToast('Sound blocked by browser (click once then retry)', 'error');
     }
   }
 
@@ -974,6 +1036,39 @@ function AdminView({
               <li className="muted">No activity yet.</li>
             )}
           </ul>
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-header">
+          <div>
+            <h2>Sound Effects</h2>
+            <p>Upload WAV files and test playback.</p>
+          </div>
+        </div>
+        {['buzzer', 'tick', 'correct', 'wrong'].map((name) => (
+          <div key={name} className="row" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
+            <strong style={{ width: 90, textTransform: 'capitalize' }}>{name}</strong>
+            <input
+              type="file"
+              accept="audio/wav,audio/*"
+              disabled={busy}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) uploadSfx(name, f);
+                e.target.value = '';
+              }}
+            />
+            <button onClick={() => testSfx(name)} disabled={busy}>
+              Test
+            </button>
+            <span className="muted">
+              {(sfxMeta || []).find((m) => m.name === name)?.updatedAt ? 'Custom uploaded' : 'Using default'}
+            </span>
+          </div>
+        ))}
+        <div className="muted">
+          Tip: upload small WAVs. If playback is blocked, click once anywhere on the page then press Test again.
         </div>
       </div>
 
@@ -1910,6 +2005,7 @@ function App() {
                 gameState={game.gameState}
                 events={game.events}
                 buzzQueue={game.buzzQueue}
+                sfxMeta={game.sfxMeta}
                 refreshQuestions={game.refreshQuestions}
                 refreshState={game.refreshState}
                 setCurrentQuestion={game.setCurrentQuestion}

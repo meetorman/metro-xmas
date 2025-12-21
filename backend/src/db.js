@@ -69,6 +69,13 @@ CREATE TABLE IF NOT EXISTS buzz_queue (
   FOREIGN KEY (player_id) REFERENCES players(id)
 );
 
+CREATE TABLE IF NOT EXISTS sfx_files (
+  name TEXT PRIMARY KEY,
+  mime TEXT NOT NULL,
+  data BLOB NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 INSERT INTO game_state (id) VALUES (1)
   ON CONFLICT(id) DO NOTHING;
 `);
@@ -144,6 +151,16 @@ CREATE TABLE IF NOT EXISTS buzz_queue (
   FOREIGN KEY (player_id) REFERENCES players(id)
 );
 CREATE INDEX IF NOT EXISTS idx_buzz_queue_time ON buzz_queue(buzz_time);
+`);
+
+// Migration: ensure sfx_files table exists (older DBs)
+db.exec(`
+CREATE TABLE IF NOT EXISTS sfx_files (
+  name TEXT PRIMARY KEY,
+  mime TEXT NOT NULL,
+  data BLOB NOT NULL,
+  updated_at TEXT NOT NULL
+);
 `);
 
 // Backfill slugs for any existing players without one
