@@ -163,6 +163,52 @@ CREATE TABLE IF NOT EXISTS sfx_files (
 );
 `);
 
+// Migration: ensure game_history table exists
+db.exec(`
+CREATE TABLE IF NOT EXISTS game_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  game_number INTEGER NOT NULL UNIQUE,
+  question_set_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  completed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_game_history_number ON game_history(game_number);
+`);
+
+// Migration: ensure question_usage table exists
+db.exec(`
+CREATE TABLE IF NOT EXISTS question_usage (
+  question_text TEXT NOT NULL,
+  answer TEXT NOT NULL,
+  category TEXT,
+  points INTEGER,
+  first_used_in_game INTEGER,
+  last_used_in_game INTEGER,
+  use_count INTEGER DEFAULT 1,
+  PRIMARY KEY (question_text, answer, category, points)
+);
+CREATE INDEX IF NOT EXISTS idx_question_usage_game ON question_usage(last_used_in_game);
+`);
+
+// Migration: ensure question_audio table exists
+db.exec(`
+CREATE TABLE IF NOT EXISTS question_audio (
+  question_id TEXT PRIMARY KEY,
+  audio_data BLOB NOT NULL,
+  mime TEXT NOT NULL DEFAULT 'audio/mpeg',
+  created_at TEXT NOT NULL
+);
+`);
+
+// Migration: ensure question_reading exists on game_state
+const gameStateColumns = db
+  .prepare(`PRAGMA table_info(game_state)`)
+  .all()
+  .map((c) => c.name);
+if (!gameStateColumns.includes('question_reading')) {
+  db.exec(`ALTER TABLE game_state ADD COLUMN question_reading INTEGER DEFAULT 0;`);
+}
+
 // Backfill slugs for any existing players without one
 function backfillSlugs() {
   const slugify = (name) =>
@@ -206,7 +252,8 @@ function getGameState() {
       `SELECT id, status, current_question_id, current_category, current_points, current_is_placeholder,
               current_clue_text, current_answer_text,
               turn_player_id,
-              buzzer_locked, last_buzz_player_id, last_buzz_time
+              buzzer_locked, last_buzz_player_id, last_buzz_time,
+              question_reading
        FROM game_state WHERE id = 1`
     )
     .get();

@@ -2026,6 +2026,11 @@ function BuzzerOnly({ buzz, showToast }) {
     if (!player) return;
     // Disable immediately after first tap for this clue.
     if (pressedKey === clueKey) return;
+    // Disable if question is still being read
+    if (gameState?.question_reading) {
+      showToast('Wait for the question to finish reading', 'info');
+      return;
+    }
     setPressedKey(clueKey);
     setBusy(true);
     try {
@@ -2034,6 +2039,9 @@ function BuzzerOnly({ buzz, showToast }) {
       console.error(err);
       // if request failed, allow retry
       setPressedKey(null);
+      if (err.response?.data?.error) {
+        showToast(err.response.data.error, 'error');
+      }
     } finally {
       setBusy(false);
     }
@@ -2100,9 +2108,9 @@ function BuzzerOnly({ buzz, showToast }) {
       <button
         className="buzzer-button"
         onClick={handleBuzz}
-        disabled={busy || pressedKey === clueKey}
+        disabled={busy || pressedKey === clueKey || gameState?.question_reading}
       >
-        {pressedKey === clueKey ? 'Buzzed' : 'Buzz'}
+        {gameState?.question_reading ? 'Reading...' : pressedKey === clueKey ? 'Buzzed' : 'Buzz'}
       </button>
     </div>
   );
@@ -2309,12 +2317,34 @@ function BoardView({
     lastReadClueKeyRef.current = clueKey;
     
     // Auto-read immediately with backend TTS (no voice loading needed)
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
+      // Mark question as being read
+      try {
+        await fetch(`${API_BASE}/game/set-question-reading`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reading: true }),
+        });
+      } catch (err) {
+        console.error('Failed to set question reading:', err);
+      }
+      
       tts.speak(clueText, { rate: 0.85 });
     }, 300); // Small delay to let overlay appear
     
     return () => clearTimeout(timer);
   }, [clueKey, clueActive, tvSound, tts, currentQuestion, gameState?.current_clue_text]);
+
+  // Mark question as done reading when TTS finishes
+  useEffect(() => {
+    if (!tts.isSpeaking && gameState?.question_reading) {
+      fetch(`${API_BASE}/game/set-question-reading`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reading: false }),
+      }).catch(err => console.error('Failed to clear question reading:', err));
+    }
+  }, [tts.isSpeaking, gameState?.question_reading]);
 
   // TV-only ticking during countdown
   const lastTickRef = useRef(null);

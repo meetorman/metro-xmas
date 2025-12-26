@@ -208,10 +208,53 @@ function ensureSystemPlayer() {
   };
 }
 
-function seedDefaultQuestions({ selectForGame = true, pack = 'holiday2025' } = {}) {
+function getNextGameNumber() {
+  const max = db.prepare('SELECT MAX(game_number) as max FROM game_history').get();
+  return (max?.max || 0) + 1;
+}
+
+function checkQuestionUsed(questionText, answer, category, points) {
+  return db
+    .prepare(
+      `SELECT first_used_in_game, last_used_in_game, use_count
+       FROM question_usage
+       WHERE question_text = ? AND answer = ? AND category IS ? AND points IS ?`
+    )
+    .get(questionText, answer, category, points);
+}
+
+function recordQuestionUsage(questionText, answer, category, points, gameNumber) {
+  const existing = checkQuestionUsed(questionText, answer, category, points);
+  if (existing) {
+    db.prepare(
+      `UPDATE question_usage
+       SET last_used_in_game = ?, use_count = use_count + 1
+       WHERE question_text = ? AND answer = ? AND category IS ? AND points IS ?`
+    ).run(gameNumber, questionText, answer, category, points);
+  } else {
+    db.prepare(
+      `INSERT INTO question_usage (question_text, answer, category, points, first_used_in_game, last_used_in_game, use_count)
+       VALUES (?, ?, ?, ?, ?, ?, 1)`
+    ).run(questionText, answer, category, points, gameNumber, gameNumber);
+  }
+}
+
+function seedDefaultQuestions({ selectForGame = true, pack = 'holiday2025', gameNumber = null } = {}) {
   const system = ensureSystemPlayer();
   let inserted = 0;
+  let skipped = 0;
   const pool = QUESTION_PACKS[pack] || QUESTION_PACKS.holiday2025 || defaultQuestions;
+  
+  // Get or create game number
+  const gameNum = gameNumber || getNextGameNumber();
+  
+  // Store question set in game history
+  const questionSetJson = JSON.stringify(pool);
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT OR IGNORE INTO game_history (game_number, question_set_json, created_at)
+     VALUES (?, ?, ?)`
+  ).run(gameNum, questionSetJson, now);
 
   const existsStmt = db.prepare(
     `SELECT 1 FROM questions
@@ -222,7 +265,6 @@ function seedDefaultQuestions({ selectForGame = true, pack = 'holiday2025' } = {
      VALUES (@id, @player_id, @question_text, @answer, @category, @points, @selected_for_game, 0, @created_at)`
   );
 
-  const now = new Date().toISOString();
   const tx = db.transaction(() => {
     for (const q of pool) {
       const cat = q.category ? String(q.category).trim() : null;
@@ -231,8 +273,19 @@ function seedDefaultQuestions({ selectForGame = true, pack = 'holiday2025' } = {
       const ans = String(q.answer || '').trim();
       if (!qText || !ans || !cat || !pts) continue;
 
+      // Check if question already exists in DB
       const exists = existsStmt.get(system.id, qText, ans, cat, pts);
-      if (exists) continue;
+      if (exists) {
+        skipped += 1;
+        continue;
+      }
+
+      // Check if question was used before (duplicate check)
+      const used = checkQuestionUsed(qText, ans, cat, pts);
+      if (used) {
+        skipped += 1;
+        continue; // Skip duplicates
+      }
 
       insertStmt.run({
         id: uuidv4(),
@@ -244,12 +297,15 @@ function seedDefaultQuestions({ selectForGame = true, pack = 'holiday2025' } = {
         selected_for_game: selectForGame ? 1 : 0,
         created_at: now,
       });
+      
+      // Record question usage
+      recordQuestionUsage(qText, ans, cat, pts, gameNum);
       inserted += 1;
     }
   });
   tx();
 
-  return { inserted, player: system };
+  return { inserted, skipped, player: system, gameNumber: gameNum };
 }
 
 function slugify(name) {
@@ -477,8 +533,10 @@ app.post('/api/admin/seed-defaults', (req, res) => {
   });
   emit(getIo(req), 'players:updated', listPlayers());
   emit(getIo(req), 'questions:updated', listQuestions());
-  logEvent(req, 'seed_defaults', `Seeded default questions (+${result.inserted})`, {
+  logEvent(req, 'seed_defaults', `Seeded default questions (+${result.inserted}, skipped ${result.skipped || 0})`, {
     inserted: result.inserted,
+    skipped: result.skipped || 0,
+    gameNumber: result.gameNumber,
     selectForGame: selectForGame === undefined ? true : !!selectForGame,
     pack: pack || 'holiday2025',
   });
@@ -586,12 +644,25 @@ app.get('/api/sfx/:name', (req, res) => {
 
 // TTS endpoint using Google Translate TTS (free, better quality than Web Speech API)
 app.post('/api/tts/speak', async (req, res) => {
-  const { text } = req.body || {};
+  const { text, questionId } = req.body || {};
   if (!text || typeof text !== 'string' || !text.trim()) {
     return res.status(400).json({ error: 'Text is required' });
   }
 
   try {
+    // Check if audio is already cached
+    if (questionId) {
+      const cached = db
+        .prepare('SELECT audio_data, mime FROM question_audio WHERE question_id = ?')
+        .get(questionId);
+      if (cached) {
+        res.setHeader('Content-Type', cached.mime || 'audio/mpeg');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.send(cached.audio_data);
+        return;
+      }
+    }
+
     // Google Translate TTS API (free, no auth required)
     // Provides much better quality than browser Web Speech API
     const encodedText = encodeURIComponent(text.trim().slice(0, 200)); // Limit length
@@ -610,6 +681,15 @@ app.post('/api/tts/speak', async (req, res) => {
     }
     
     const audioBuffer = await response.buffer();
+    
+    // Cache audio if questionId provided
+    if (questionId) {
+      db.prepare(
+        `INSERT OR REPLACE INTO question_audio (question_id, audio_data, mime, created_at)
+         VALUES (?, ?, 'audio/mpeg', ?)`
+      ).run(questionId, audioBuffer, new Date().toISOString());
+    }
+    
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.send(audioBuffer);
@@ -619,8 +699,128 @@ app.post('/api/tts/speak', async (req, res) => {
   }
 });
 
+// Pre-generate audio for all questions
+app.post('/api/admin/pregenerate-audio', async (req, res) => {
+  const questions = listQuestions(true); // Get selected questions
+  const fetch = require('node-fetch');
+  let generated = 0;
+  let errors = 0;
+
+  for (const q of questions) {
+    if (!q.questionText || q.questionText === 'N/A') continue;
+    
+    try {
+      // Check if already cached
+      const cached = db
+        .prepare('SELECT 1 FROM question_audio WHERE question_id = ?')
+        .get(q.id);
+      if (cached) {
+        generated += 1;
+        continue;
+      }
+
+      const encodedText = encodeURIComponent(q.questionText.trim().slice(0, 200));
+      const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=en&client=tw-ob`;
+      
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Referer': 'https://translate.google.com/'
+        }
+      });
+      
+      if (response.ok) {
+        const audioBuffer = await response.buffer();
+        db.prepare(
+          `INSERT OR REPLACE INTO question_audio (question_id, audio_data, mime, created_at)
+           VALUES (?, ?, 'audio/mpeg', ?)`
+        ).run(q.id, audioBuffer, new Date().toISOString());
+        generated += 1;
+      } else {
+        errors += 1;
+      }
+      
+      // Small delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } catch (err) {
+      console.error(`Error generating audio for question ${q.id}:`, err);
+      errors += 1;
+    }
+  }
+
+  res.json({ generated, errors, total: questions.length });
+});
+
 app.get('/api/admin/sfx', (req, res) => {
   res.json(listSfxMeta());
+});
+
+// Game history endpoints
+app.get('/api/admin/game-history', (req, res) => {
+  const history = db
+    .prepare(
+      `SELECT id, game_number AS gameNumber, question_set_json AS questionSetJson,
+              created_at AS createdAt, completed_at AS completedAt
+       FROM game_history
+       ORDER BY game_number DESC
+       LIMIT 50`
+    )
+    .all();
+  res.json(history);
+});
+
+app.post('/api/admin/game-history/:gameNumber/load', (req, res) => {
+  const gameNum = parseInt(req.params.gameNumber, 10);
+  if (!Number.isFinite(gameNum) || gameNum < 1) {
+    return res.status(400).json({ error: 'Invalid game number' });
+  }
+
+  const history = db
+    .prepare('SELECT question_set_json FROM game_history WHERE game_number = ?')
+    .get(gameNum);
+  
+  if (!history) {
+    return res.status(404).json({ error: 'Game not found in history' });
+  }
+
+  const questionSet = JSON.parse(history.question_set_json);
+  const system = ensureSystemPlayer();
+  const now = new Date().toISOString();
+  
+  // Clear existing questions
+  db.prepare('DELETE FROM questions WHERE player_id = ?').run(system.id);
+  
+  const insertStmt = db.prepare(
+    `INSERT INTO questions (id, player_id, question_text, answer, category, points, selected_for_game, used_in_game, created_at)
+     VALUES (@id, @player_id, @question_text, @answer, @category, @points, @selected_for_game, 0, @created_at)`
+  );
+
+  const tx = db.transaction(() => {
+    for (const q of questionSet) {
+      const cat = q.category ? String(q.category).trim() : null;
+      const pts = Number.isFinite(q.points) ? Math.trunc(q.points) : null;
+      const qText = String(q.questionText || '').trim();
+      const ans = String(q.answer || '').trim();
+      if (!qText || !ans || !cat || !pts) continue;
+
+      insertStmt.run({
+        id: uuidv4(),
+        player_id: system.id,
+        question_text: qText,
+        answer: ans,
+        category: cat,
+        points: pts,
+        selected_for_game: 1,
+        created_at: now,
+      });
+      
+      recordQuestionUsage(qText, ans, cat, pts, gameNum);
+    }
+  });
+  tx();
+
+  emit(getIo(req), 'questions:updated', listQuestions());
+  res.json({ ok: true, gameNumber: gameNum, loaded: questionSet.length });
 });
 
 app.post('/api/admin/sfx/:name', (req, res) => {
@@ -832,6 +1032,7 @@ app.post('/api/game/select-card', (req, res) => {
     buzzer_locked: 0,
     last_buzz_player_id: null,
     last_buzz_time: null,
+    question_reading: 1, // Mark question as being read
   });
   emit(getIo(req), 'questions:updated', listQuestions());
   emit(getIo(req), 'game:state', state);
@@ -987,6 +1188,11 @@ app.post('/api/game/buzz', (req, res) => {
   const clueActive = !!state.current_question_id || !!state.current_is_placeholder;
   if (!clueActive) {
     return res.status(400).json({ error: 'No active clue' });
+  }
+
+  // Disable buzzer until question has been read
+  if (state.question_reading) {
+    return res.status(400).json({ error: 'Question is still being read' });
   }
 
   const now = new Date().toISOString();
