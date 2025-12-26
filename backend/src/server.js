@@ -1167,6 +1167,16 @@ app.post('/api/game/unlock-buzzer', (req, res) => {
   res.json(state);
 });
 
+app.post('/api/game/set-question-reading', (req, res) => {
+  const { reading } = req.body || {};
+  if (typeof reading !== 'boolean') {
+    return res.status(400).json({ error: 'reading must be boolean' });
+  }
+  const state = updateGameState({ question_reading: reading ? 1 : 0 });
+  emit(getIo(req), 'game:state', state);
+  res.json(state);
+});
+
 app.post('/api/game/buzz', (req, res) => {
   const { playerId } = req.body || {};
   if (!playerId) {
