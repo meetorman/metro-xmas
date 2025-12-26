@@ -29,9 +29,9 @@
   { "category": "Technology & Apps", "points": 800, "questionText": "Which company created the iPhone?", "answer": "Apple" },
   { "category": "Technology & Apps", "points": 1000, "questionText": "What is the name of the popular messaging app with disappearing messages?", "answer": "Snapchat" },
 
-  { "category": "Memes & Viral Trends", "points": 200, "questionText": "What is the name of the dance that became viral on TikTok in 2020?", "answer": "The Renegade (or any popular TikTok dance)" },
-  { "category": "Memes & Viral Trends", "points": 400, "questionText": "What does 'no cap' mean in slang?", "answer": "No lie" },
-  { "category": "Memes & Viral Trends", "points": 600, "questionText": "Which meme features a woman yelling at a cat?", "answer": "Woman Yelling at Cat (or Smudge the Cat)" },
-  { "category": "Memes & Viral Trends", "points": 800, "questionText": "What does 'sus' mean in internet slang?", "answer": "Suspicious" },
-  { "category": "Memes & Viral Trends", "points": 1000, "questionText": "What is the name of the viral dance challenge that involves moving your arms in a specific pattern?", "answer": "The Floss (or any specific dance challenge)" }
+  { "category": "Old Farts", "points": 200, "questionText": "What was the name of the popular TV show about a bar where everybody knows your name?", "answer": "Cheers" },
+  { "category": "Old Farts", "points": 400, "questionText": "Which band released the album 'Thriller' in 1982?", "answer": "Michael Jackson" },
+  { "category": "Old Farts", "points": 600, "questionText": "What was the name of the first video game console released by Nintendo in 1985?", "answer": "Nintendo Entertainment System (or NES)" },
+  { "category": "Old Farts", "points": 800, "questionText": "Which movie featured the line 'Nobody puts Baby in a corner'?", "answer": "Dirty Dancing" },
+  { "category": "Old Farts", "points": 1000, "questionText": "What was the name of the popular TV show about a group of friends living in New York that premiered in 1994?", "answer": "Friends" }
 ]
