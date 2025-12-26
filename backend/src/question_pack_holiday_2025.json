@@ -23,11 +23,11 @@
   { "category": "Music & Pop Culture", "points": 800, "questionText": "What is the name of the music video platform where artists upload their songs?", "answer": "YouTube" },
   { "category": "Music & Pop Culture", "points": 1000, "questionText": "Which artist released the album 'Midnights' in 2022?", "answer": "Taylor Swift" },
 
-  { "category": "Technology & Apps", "points": 200, "questionText": "What is the name of the company that makes iPhones and iPads?", "answer": "Apple" },
-  { "category": "Technology & Apps", "points": 400, "questionText": "Which app allows you to send disappearing photos and videos?", "answer": "Snapchat" },
-  { "category": "Technology & Apps", "points": 600, "questionText": "What does 'GPS' stand for?", "answer": "Global Positioning System" },
-  { "category": "Technology & Apps", "points": 800, "questionText": "Which company created the Android operating system?", "answer": "Google" },
-  { "category": "Technology & Apps", "points": 1000, "questionText": "What is the name of the virtual assistant created by Amazon?", "answer": "Alexa" },
+  { "category": "Music Genres", "points": 200, "questionText": "What music genre is characterized by heavy guitar riffs and loud drums?", "answer": "Rock" },
+  { "category": "Music Genres", "points": 400, "questionText": "Which music genre originated in the Bronx in the 1970s and includes rapping?", "answer": "Hip Hop (or Rap)" },
+  { "category": "Music Genres", "points": 600, "questionText": "What is the name of the music genre that combines electronic music with dance beats?", "answer": "EDM (Electronic Dance Music)" },
+  { "category": "Music Genres", "points": 800, "questionText": "Which music genre is known for its use of steel guitars and storytelling about life?", "answer": "Country" },
+  { "category": "Music Genres", "points": 1000, "questionText": "What is the name of the music genre that originated in Jamaica and features a distinctive rhythm?", "answer": "Reggae" },
 
   { "category": "Old Farts", "points": 200, "questionText": "What was the name of the popular TV show about a bar where everybody knows your name?", "answer": "Cheers" },
   { "category": "Old Farts", "points": 400, "questionText": "Which band released the album 'Thriller' in 1982?", "answer": "Michael Jackson" },
