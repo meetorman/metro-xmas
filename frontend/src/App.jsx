@@ -2151,16 +2151,15 @@ function BoardView({
   const categories = useMemo(() => {
     const counts = new Map();
     selected.forEach((q) => {
-      const cat = q.category.trim();
-      counts.set(cat, (counts.get(cat) || 0) + 1);
+      const cat = (q.category || '').trim();
+      if (cat && cat !== 'N/A' && cat !== 'NA') {
+        counts.set(cat, (counts.get(cat) || 0) + 1);
+      }
     });
     const top = [...counts.entries()]
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 6)
       .map(([cat]) => cat);
-    while (top.length < 6) {
-      top.push(`Category ${top.length + 1}`);
-    }
+    // Only show actual categories, don't pad with placeholders
     return top;
   }, [selected]);
 
