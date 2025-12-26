@@ -1,37 +1,31 @@
 [
-  { "category": "Social Media & Internet", "points": 200, "questionText": "What does 'LOL' stand for?", "answer": "Laugh Out Loud" },
-  { "category": "Social Media & Internet", "points": 400, "questionText": "Which app is known for its blue bird logo?", "answer": "Twitter (or X)" },
-  { "category": "Social Media & Internet", "points": 600, "questionText": "What does 'FOMO' stand for?", "answer": "Fear Of Missing Out" },
-  { "category": "Social Media & Internet", "points": 800, "questionText": "Which platform allows users to create and share short videos with music?", "answer": "TikTok" },
-  { "category": "Social Media & Internet", "points": 1000, "questionText": "What does 'TL;DR' stand for?", "answer": "Too Long; Didn't Read" },
-
-  { "category": "Video Games & Gaming", "points": 200, "questionText": "What is the name of the popular game where players battle to be the last one standing on an island?", "answer": "Fortnite" },
-  { "category": "Video Games & Gaming", "points": 400, "questionText": "Which game features characters like Mario and Luigi?", "answer": "Super Mario Bros (or any Mario game)" },
-  { "category": "Video Games & Gaming", "points": 600, "questionText": "What does 'NPC' stand for in gaming?", "answer": "Non-Player Character" },
-  { "category": "Video Games & Gaming", "points": 800, "questionText": "Which game involves catching Pokemon in the real world using your phone?", "answer": "Pokemon GO" },
-  { "category": "Video Games & Gaming", "points": 1000, "questionText": "What is the name of the popular game where you can build and explore blocky worlds?", "answer": "Minecraft" },
-
-  { "category": "Movies & TV Shows", "points": 200, "questionText": "Which streaming service has a red logo and created shows like The Crown?", "answer": "Netflix" },
-  { "category": "Movies & TV Shows", "points": 400, "questionText": "What is the name of the superhero team that includes Iron Man, Captain America, and Thor?", "answer": "The Avengers" },
-  { "category": "Movies & TV Shows", "points": 600, "questionText": "Which animated movie features the song 'We Don't Talk About Bruno'?", "answer": "Encanto" },
-  { "category": "Movies & TV Shows", "points": 800, "questionText": "What is the name of the popular TV show about a group of friends in a coffee shop?", "answer": "Friends" },
-  { "category": "Movies & TV Shows", "points": 1000, "questionText": "Which movie series features a wizard named Harry Potter?", "answer": "Harry Potter" },
-
-  { "category": "Music & Pop Culture", "points": 200, "questionText": "Which artist is known for the song 'Bad Guy'?", "answer": "Billie Eilish" },
-  { "category": "Music & Pop Culture", "points": 400, "questionText": "What is the name of the popular music streaming service with a green logo?", "answer": "Spotify" },
-  { "category": "Music & Pop Culture", "points": 600, "questionText": "Which K-pop group is known for songs like 'Butter' and 'Dynamite'?", "answer": "BTS" },
-  { "category": "Music & Pop Culture", "points": 800, "questionText": "What is the name of the music video platform where artists upload their songs?", "answer": "YouTube" },
-  { "category": "Music & Pop Culture", "points": 1000, "questionText": "Which artist released the album 'Midnights' in 2022?", "answer": "Taylor Swift" },
-
-  { "category": "Music Genres", "points": 200, "questionText": "What music genre is characterized by heavy guitar riffs and loud drums?", "answer": "Rock" },
-  { "category": "Music Genres", "points": 400, "questionText": "Which music genre originated in the Bronx in the 1970s and includes rapping?", "answer": "Hip Hop (or Rap)" },
-  { "category": "Music Genres", "points": 600, "questionText": "What is the name of the music genre that combines electronic music with dance beats?", "answer": "EDM (Electronic Dance Music)" },
-  { "category": "Music Genres", "points": 800, "questionText": "Which music genre is known for its use of steel guitars and storytelling about life?", "answer": "Country" },
-  { "category": "Music Genres", "points": 1000, "questionText": "What is the name of the music genre that originated in Jamaica and features a distinctive rhythm?", "answer": "Reggae" },
-
-  { "category": "Old Farts", "points": 200, "questionText": "What was the name of the popular TV show about a bar where everybody knows your name?", "answer": "Cheers" },
+  { "category": "Old Farts", "points": 200, "questionText": "What was the name of the popular TV show about a group of friends living in New York that premiered in 1994?", "answer": "Friends" },
   { "category": "Old Farts", "points": 400, "questionText": "Which band released the album 'Thriller' in 1982?", "answer": "Michael Jackson" },
   { "category": "Old Farts", "points": 600, "questionText": "What was the name of the first video game console released by Nintendo in 1985?", "answer": "Nintendo Entertainment System (or NES)" },
   { "category": "Old Farts", "points": 800, "questionText": "Which movie featured the line 'Nobody puts Baby in a corner'?", "answer": "Dirty Dancing" },
-  { "category": "Old Farts", "points": 1000, "questionText": "What was the name of the popular TV show about a group of friends living in New York that premiered in 1994?", "answer": "Friends" }
+  { "category": "Old Farts", "points": 1000, "questionText": "What was the name of the popular TV show about a bar where everybody knows your name?", "answer": "Cheers" },
+
+  { "category": "Long Strange Trip", "points": 200, "questionText": "What is the name of the band known for songs like 'Truckin'' and 'Sugar Magnolia'?", "answer": "Grateful Dead" },
+  { "category": "Long Strange Trip", "points": 400, "questionText": "What is the name of the Grateful Dead's most famous live album released in 1977?", "answer": "Live at Cornell 1977 (or Cornell 5/8/77)" },
+  { "category": "Long Strange Trip", "points": 600, "questionText": "What is the nickname for fans of the Grateful Dead?", "answer": "Deadheads" },
+  { "category": "Long Strange Trip", "points": 800, "questionText": "Which Grateful Dead song contains the lyrics 'What a long, strange trip it's been'?", "answer": "Truckin'" },
+  { "category": "Long Strange Trip", "points": 1000, "questionText": "What was the name of the Grateful Dead's lead guitarist who passed away in 1995?", "answer": "Jerry Garcia" },
+
+  { "category": "Gaming", "points": 200, "questionText": "What is the name of the popular game where you can build and explore blocky worlds?", "answer": "Minecraft" },
+  { "category": "Gaming", "points": 400, "questionText": "Which game features characters like Mario and Luigi?", "answer": "Super Mario Bros (or any Mario game)" },
+  { "category": "Gaming", "points": 600, "questionText": "What is the name of the popular game where players battle to be the last one standing on an island?", "answer": "Fortnite" },
+  { "category": "Gaming", "points": 800, "questionText": "Which game involves catching Pokemon in the real world using your phone?", "answer": "Pokemon GO" },
+  { "category": "Gaming", "points": 1000, "questionText": "What does 'NPC' stand for in gaming?", "answer": "Non-Player Character" },
+
+  { "category": "Pop Culture", "points": 200, "questionText": "Which social media platform is known for short-form vertical videos?", "answer": "TikTok" },
+  { "category": "Pop Culture", "points": 400, "questionText": "Which K-pop group is known for songs like 'Butter' and 'Dynamite'?", "answer": "BTS" },
+  { "category": "Pop Culture", "points": 600, "questionText": "Which artist released the album 'Midnights' in 2022?", "answer": "Taylor Swift" },
+  { "category": "Pop Culture", "points": 800, "questionText": "Which streaming service has a red logo and created shows like Stranger Things?", "answer": "Netflix" },
+  { "category": "Pop Culture", "points": 1000, "questionText": "What is the name of the superhero team that includes Iron Man, Captain America, and Thor?", "answer": "The Avengers" },
+
+  { "category": "Random Shit", "points": 200, "questionText": "What is the capital city of Australia?", "answer": "Canberra" },
+  { "category": "Random Shit", "points": 400, "questionText": "How many sides does a hexagon have?", "answer": "Six" },
+  { "category": "Random Shit", "points": 600, "questionText": "What is the largest planet in our solar system?", "answer": "Jupiter" },
+  { "category": "Random Shit", "points": 800, "questionText": "What is the name of the longest river in the world?", "answer": "The Nile" },
+  { "category": "Random Shit", "points": 1000, "questionText": "What is the chemical symbol for gold?", "answer": "Au" }
 ]
